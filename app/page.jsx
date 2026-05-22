@@ -1990,7 +1990,7 @@ function DesktopWidget({
   useEffect(() => {
     if (!isDesktopRuntime()) return;
     if (!isEditing) {
-      resizeDesktopWindow(620, 280).catch(() => {});
+      resizeDesktopWindow(720, 300).catch(() => {});
       return;
     }
     const rowCount = Math.max(displayFunds.length, 1);
