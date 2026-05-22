@@ -1423,7 +1423,7 @@ input[type="number"] {
   position: relative;
   z-index: 1;
   width: 100%;
-  min-height: calc(100vh - 20px);
+  height: calc(100vh - 20px);
   padding: 10px 12px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 6px;
@@ -1431,12 +1431,17 @@ input[type="number"] {
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
   overflow: hidden;
   -webkit-app-region: drag;
+  display: flex;
+  flex-direction: column;
 }
 
 .desktop-widget button,
 .desktop-widget input,
 .desktop-widget table,
 .desktop-widget-search,
+.widget-search,
+.widget-summary,
+.widget-toolbar,
 .widget-table-wrap {
   -webkit-app-region: no-drag;
 }
@@ -1474,7 +1479,7 @@ input[type="number"] {
 
 .index-time {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: rgba(0, 0, 0, 0.55);
 }
@@ -1493,7 +1498,8 @@ input[type="number"] {
 
 .widget-table-wrap {
   overflow: auto;
-  max-height: calc(100vh - 122px);
+  flex: 1;
+  min-height: 58px;
 }
 
 .widget-table {
@@ -1515,7 +1521,7 @@ input[type="number"] {
 
 .widget-table th:first-child,
 .widget-table td:first-child {
-  width: 32%;
+  width: 30%;
   text-align: left;
 }
 
@@ -1527,6 +1533,37 @@ input[type="number"] {
 .widget-table td {
   color: rgba(0, 0, 0, 0.82);
   font-weight: 500;
+}
+
+.widget-fund-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  height: 20px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+  font: inherit;
+  text-align: left;
+}
+
+.widget-fund-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.widget-fund-button small {
+  flex-shrink: 0;
+  padding: 1px 3px;
+  border: 1px solid rgba(22, 119, 255, 0.42);
+  border-radius: 3px;
+  color: #1677ff;
+  font-size: 10px;
+  line-height: 1.1;
 }
 
 .widget-empty {
@@ -1557,6 +1594,11 @@ input[type="number"] {
   cursor: pointer;
 }
 
+.widget-toolbar button.active {
+  background: #1677ff;
+  color: #fff;
+}
+
 .widget-toolbar button:disabled,
 .widget-search button:disabled {
   opacity: 0.45;
@@ -1576,9 +1618,8 @@ input[type="number"] {
 
 .widget-summary > span {
   padding: 3px 5px;
-  border: 1px solid #ff4d4f;
+  border: 1px solid currentColor;
   border-radius: 4px;
-  color: #ff4d4f;
 }
 
 .widget-summary label {
@@ -1589,7 +1630,13 @@ input[type="number"] {
 }
 
 .widget-summary input[type="range"] {
-  width: 86px;
+  width: 72px;
+}
+
+.widget-summary strong {
+  min-width: 32px;
+  color: #1677ff;
+  font-size: 11px;
 }
 
 .widget-search {
@@ -1650,6 +1697,270 @@ input[type="number"] {
 
 .widget-search-results small {
   color: rgba(0, 0, 0, 0.5);
+}
+
+.edit-mode .desktop-widget {
+  padding: 10px;
+}
+
+.widget-editor {
+  gap: 8px;
+  overflow: auto;
+}
+
+.editor-index-row {
+  margin-bottom: 4px;
+}
+
+.editor-index-row .index-name {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.index-remove {
+  width: 16px;
+  height: 16px;
+  padding: 0 !important;
+  border: 1px solid rgba(255, 77, 79, 0.28) !important;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #ff4d4f !important;
+  font-size: 14px;
+  line-height: 13px;
+}
+
+.editor-add-row {
+  position: relative;
+  padding-right: 50px;
+  text-align: center;
+  -webkit-app-region: no-drag;
+}
+
+.editor-add-row form {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: calc(100% - 8px);
+  font-size: 12px;
+}
+
+.editor-add-row input {
+  width: min(300px, 42vw);
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 2px;
+  background: #fff;
+  color: #111;
+  font-size: 12px;
+}
+
+.editor-add-row button,
+.editor-group-row button,
+.editor-toolbar button {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(22, 119, 255, 0.45);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1677ff;
+  font-size: 12px;
+}
+
+.editor-add-row p {
+  margin: 3px 0 0;
+  color: rgba(0, 0, 0, 0.38);
+  font-size: 12px;
+}
+
+.editor-add-round {
+  position: absolute;
+  top: -6px;
+  right: 2px;
+  width: 42px;
+  height: 42px !important;
+  border-radius: 999px !important;
+  color: #111 !important;
+  border-color: rgba(0, 0, 0, 0.16) !important;
+}
+
+.editor-search-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid rgba(22, 119, 255, 0.18);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.95);
+  -webkit-app-region: no-drag;
+}
+
+.editor-search-results button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid rgba(22, 119, 255, 0.35);
+  border-radius: 3px;
+  background: #fff;
+  color: #1677ff;
+  font-size: 12px;
+}
+
+.editor-search-results small {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.editor-group-row {
+  display: flex;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.editor-group-row .active,
+.editor-toolbar .active {
+  border-color: #1677ff;
+  color: #1677ff;
+}
+
+.editor-table-wrap {
+  overflow: auto;
+  min-height: 0;
+  -webkit-app-region: no-drag;
+}
+
+.editor-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+}
+
+.editor-table th,
+.editor-table td {
+  padding: 4px 5px;
+  color: #111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.editor-table th:first-child,
+.editor-table td:first-child {
+  width: 28%;
+  text-align: left;
+}
+
+.editor-table th:nth-child(2) {
+  width: 72px;
+}
+
+.editor-table input {
+  width: 100%;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  border-radius: 2px;
+  background: #fff;
+  color: #111;
+  font-size: 12px;
+}
+
+.editor-icon-btn,
+.editor-delete-btn {
+  height: 22px !important;
+  padding: 0 5px !important;
+  border-radius: 3px !important;
+  background: #fff !important;
+  color: #1677ff !important;
+}
+
+.editor-delete-btn {
+  border-color: rgba(255, 77, 79, 0.32) !important;
+  color: #ff4d4f !important;
+}
+
+.editor-note {
+  color: rgba(0, 0, 0, 0.38);
+  font-size: 12px;
+  -webkit-app-region: no-drag;
+}
+
+.editor-settings-row,
+.editor-toolbar,
+.editor-summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  -webkit-app-region: no-drag;
+}
+
+.editor-settings-row {
+  color: #111;
+  font-size: 12px;
+}
+
+.editor-settings-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editor-settings-row input[type="range"] {
+  width: 150px;
+}
+
+.mode-link {
+  border: 0 !important;
+  background: transparent !important;
+  color: #1677ff !important;
+  padding: 0 !important;
+}
+
+.mode-toggle {
+  width: 38px;
+  height: 20px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: #22c55e !important;
+  position: relative;
+}
+
+.mode-toggle::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.editor-toolbar {
+  position: relative;
+}
+
+.refresh-float {
+  position: absolute;
+  right: 4px;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.editor-summary span {
+  padding: 3px 5px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 /* ========== 移动端响应式 ========== */

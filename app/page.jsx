@@ -34,15 +34,16 @@ const getTauriWindow = async () => {
   return getCurrentWindow();
 };
 
-const minimizeDesktopWindow = async () => {
+const resizeDesktopWindow = async (width, height) => {
   if (window.__TAURI_INTERNALS__) {
-    return (await getTauriWindow()).minimize();
+    const { LogicalSize } = await import('@tauri-apps/api/dpi');
+    return (await getTauriWindow()).setSize(new LogicalSize(width, height));
   }
 };
 
-const closeDesktopWindow = async () => {
+const hideDesktopWindowToTray = async () => {
   if (window.__TAURI_INTERNALS__) {
-    return (await getTauriWindow()).close();
+    return (await getTauriWindow()).hide();
   }
 };
 
@@ -53,6 +54,16 @@ const toggleDesktopAlwaysOnTop = async () => {
     await win.setAlwaysOnTop(next);
     return next;
   }
+};
+
+const getReferenceNav = (fund) => {
+  const estimatedNav = fund?.estPricedCoverage > 0.05 ? fund?.estGsz : fund?.gsz;
+  const candidates = [estimatedNav, fund?.dwjz];
+  for (const value of candidates) {
+    const nav = Number(value);
+    if (Number.isFinite(nav) && nav > 0) return nav;
+  }
+  return 0;
 };
 
 function FeedbackModal({ onClose, onOpenWeChat }) {
@@ -1039,7 +1050,7 @@ function HoldingEditModal({ fund, holding, onClose, onSave }) {
   const [mode, setMode] = useState('amount'); // 'amount' | 'share'
 
   // 基础数据
-  const dwjz = fund?.dwjz || fund?.gsz || 0;
+  const dwjz = getReferenceNav(fund);
 
   // 表单状态
   const [share, setShare] = useState('');
@@ -1078,7 +1089,7 @@ function HoldingEditModal({ fund, holding, onClose, onSave }) {
         const principal = a - p;
         const c = s > 0 ? principal / s : 0;
 
-        setShare(s.toFixed(2)); // 保留2位小数，或者更多？基金份额通常2位
+        setShare(s.toFixed(4));
         setCost(c.toFixed(4));
       }
     } else {
@@ -1110,7 +1121,7 @@ function HoldingEditModal({ fund, holding, onClose, onSave }) {
       const a = Number(amount);
       const p = Number(profit || 0);
       const rawShare = a / dwjz;
-      finalShare = Number(rawShare.toFixed(2));
+      finalShare = Number(rawShare.toFixed(4));
       const principal = a - p;
       finalCost = finalShare > 0 ? principal / finalShare : 0;
     }
@@ -1949,7 +1960,10 @@ function DesktopWidget({
   toggleSelectFund,
   addFund,
   manualRefresh,
-  getHoldingProfit
+  getHoldingProfit,
+  openHoldingModal,
+  saveHolding,
+  requestRemoveFund
 }) {
   const [opacity, setOpacity] = useState(() => {
     if (typeof window === 'undefined') return 0.92;
@@ -1957,11 +1971,38 @@ function DesktopWidget({
     return Number.isFinite(saved) ? saved : 0.92;
   });
   const [showTools, setShowTools] = useState(false);
+  const [isPinned, setIsPinned] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem('widgetOpacity', String(opacity));
   }, [opacity]);
+
+  useEffect(() => {
+    if (!isDesktopRuntime()) return;
+    getTauriWindow()
+      .then((win) => win.isAlwaysOnTop())
+      .then(setIsPinned)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktopRuntime()) return;
+    if (!isEditing) {
+      resizeDesktopWindow(620, 280).catch(() => {});
+      return;
+    }
+    const rowCount = Math.max(displayFunds.length, 1);
+    const width = Math.min(900, Math.max(700, 680 + Math.min(rowCount, 6) * 18));
+    const height = Math.min(700, Math.max(420, 320 + rowCount * 34 + (showDropdown ? 72 : 0)));
+    resizeDesktopWindow(width, height).catch(() => {});
+  }, [isEditing, displayFunds.length, showDropdown]);
+
+  const handleTogglePinned = async () => {
+    const next = await toggleDesktopAlwaysOnTop();
+    if (typeof next === 'boolean') setIsPinned(next);
+  };
 
   const rows = displayFunds.slice(0, 8).map((fund) => {
     const holding = holdings[fund.code];
@@ -2018,6 +2059,181 @@ function DesktopWidget({
     if (value === null || value === undefined || !Number.isFinite(value)) return '--';
     return `${value > 0 ? '' : ''}${value.toFixed(2)}%`;
   };
+  const updateHoldingField = (fund, field, value) => {
+    const current = holdings[fund.code] || {};
+    const numericValue = Number(value);
+    const next = {
+      share: field === 'share' ? numericValue : Number(current.share || 0),
+      cost: field === 'cost' ? numericValue : Number(current.cost || 0)
+    };
+    if (!Number.isFinite(numericValue) || numericValue < 0) return;
+    if (next.share === 0 && next.cost === 0) {
+      saveHolding(fund.code, { share: null, cost: null });
+      return;
+    }
+    saveHolding(fund.code, next);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="desktop-widget-shell edit-mode" style={{ '--widget-opacity': Math.max(opacity, 0.9) }}>
+        <div className="desktop-widget-drag" data-tauri-drag-region />
+        <div className="desktop-widget widget-editor" data-tauri-drag-region>
+          <div className="widget-index-row editor-index-row">
+            {indexes.map((item) => (
+              <div className="widget-index" key={item.code}>
+                <div className="index-name">
+                  {item.label}
+                  <button type="button" className="index-remove" title="隐藏指数">×</button>
+                </div>
+                <div className={`index-value ${colorClass(item.change || 0)}`}>
+                  {item.value === null ? '--' : item.value.toFixed(2)}
+                </div>
+                <div className={`index-change ${colorClass(item.change || 0)}`}>
+                  {signed(item.change)}&nbsp;&nbsp;{signedPercent(item.percent)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="editor-add-row">
+            <button type="button" className="editor-add-round" onClick={() => setShowTools((value) => !value)}>添加</button>
+            <form onSubmit={addFund}>
+              <span>添加新基金:</span>
+              <input
+                placeholder="请输入基金编码，支持按名称或编码搜索"
+                value={searchTerm}
+                onChange={handleSearchInput}
+                onFocus={() => setShowDropdown(true)}
+              />
+              <button type="submit" disabled={loading}>{loading ? '添加中' : '确定'}</button>
+            </form>
+          </div>
+
+          {showDropdown && (searchTerm.trim() || searchResults.length > 0) && (
+            <div className="editor-search-results" ref={dropdownRef}>
+              {isSearching ? (
+                <div className="widget-empty">搜索中...</div>
+              ) : searchResults.length > 0 ? (
+                searchResults.map((fund) => {
+                  const isSelected = selectedFunds.some((item) => item.CODE === fund.CODE);
+                  const isAlreadyAdded = funds.some((item) => item.code === fund.CODE);
+                  return (
+                    <button
+                      type="button"
+                      key={fund.CODE}
+                      disabled={isAlreadyAdded}
+                      className={isSelected ? 'selected' : ''}
+                      onClick={() => toggleSelectFund(fund)}
+                    >
+                      <span>{fund.NAME}</span>
+                      <small>{fund.CODE}{isAlreadyAdded ? ' · 已添加' : ''}</small>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="widget-empty">未找到相关基金</div>
+              )}
+            </div>
+          )}
+
+          <div className="editor-group-row">
+            <button type="button" className="active">默认分组</button>
+            <button type="button">添加分组</button>
+          </div>
+
+          <div className="editor-table-wrap">
+            <table className="editor-table">
+              <thead>
+                <tr>
+                  <th>基金名称 ({funds.length})</th>
+                  <th>基金代码</th>
+                  <th>成本价</th>
+                  <th>持有份额</th>
+                  <th>持有额</th>
+                  <th>加减仓</th>
+                  <th>持有收益</th>
+                  <th>估算收益</th>
+                  <th>删除</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayFunds.map((fund) => {
+                  const holding = holdings[fund.code] || {};
+                  const profit = getHoldingProfit(fund, holding);
+                  const share = Number(holding.share || 0);
+                  const cost = Number(holding.cost || 0);
+                  const amount = share > 0 && cost > 0 ? share * cost : 0;
+                  return (
+                    <tr key={fund.code}>
+                      <td title={fund.name}>{fund.name}</td>
+                      <td>{fund.code}</td>
+                      <td>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          min="0"
+                          defaultValue={cost > 0 ? cost.toFixed(4) : ''}
+                          onBlur={(event) => updateHoldingField(fund, 'cost', event.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          defaultValue={share > 0 ? share.toFixed(2) : ''}
+                          onBlur={(event) => updateHoldingField(fund, 'share', event.target.value)}
+                        />
+                      </td>
+                      <td>{amount > 0 ? amount.toFixed(2) : '--'}</td>
+                      <td>
+                        <button type="button" className="editor-icon-btn" onClick={() => openHoldingModal(fund)} title="高级编辑持仓">编辑</button>
+                      </td>
+                      <td className={colorClass(profit?.profitTotal || 0)}>{signedMoney(profit?.profitTotal)}</td>
+                      <td className={colorClass(profit?.profitToday || 0)}>{signedMoney(profit?.profitToday)}</td>
+                      <td>
+                        <button type="button" className="editor-delete-btn" onClick={() => requestRemoveFund(fund)}>×</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="editor-note">特别关注功能介绍：指定一个基金，在程序图标中以角标的形式实时更新，请在设置中选择角标类型与内容。</div>
+
+          <div className="editor-settings-row">
+            <button type="button" className="mode-link active">标准模式</button>
+            <button type="button" className="mode-toggle" aria-label="标准模式开关" />
+            <button type="button" className="mode-link">暗色模式</button>
+            <label>界面灰度:<input type="range" min="0" max="100" defaultValue="0" /></label>
+            <label>透明度:<input type="range" min="0.45" max="1" step="0.01" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} /></label>
+          </div>
+
+          <div className="editor-toolbar">
+            <button type="button" onClick={() => setShowTools((value) => !value)}>行情中心</button>
+            <button type="button" onClick={manualRefresh} disabled={refreshing || funds.length === 0}>暂停更新</button>
+            <button type="button" onClick={() => setIsEditing(false)}>完成编辑</button>
+            <button type="button">设置</button>
+            <button type="button">日志</button>
+            <button type="button" className="active">打赏</button>
+            <button type="button" className="refresh-float" onClick={manualRefresh} disabled={refreshing || funds.length === 0}>
+              <RefreshIcon width="16" height="16" className={refreshing ? 'spin' : ''} />
+            </button>
+          </div>
+
+          <div className="editor-summary">
+            <span className="flat">总金额:{summary.amount.toFixed(2)}</span>
+            <span className={colorClass(summary.today)}>日收益:{summary.today.toFixed(2)}</span>
+            <span className={colorClass(summary.total)}>持有收益:{summary.total.toFixed(2)}</span>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="desktop-widget-shell" style={{ '--widget-opacity': opacity }}>
@@ -2042,19 +2258,28 @@ function DesktopWidget({
           <table className="widget-table">
             <thead>
               <tr>
-                <th>基金名称 ({funds.length})</th>
-                <th>估算净值</th>
-                <th>持有收益</th>
-                <th>持有收益率</th>
-                <th>涨跌幅</th>
-                <th>估算收益</th>
-                <th>更新时间</th>
+                <th>基金 ({funds.length})</th>
+                <th>净值</th>
+                <th>持收</th>
+                <th>收益率</th>
+                <th>涨跌</th>
+                <th>估收</th>
+                <th>时间</th>
               </tr>
             </thead>
             <tbody>
               {rows.length ? rows.map((row) => (
                 <tr key={row.fund.code}>
-                  <td title={row.fund.name}>{row.fund.name}</td>
+                  <td title={`${row.fund.name} - 点击设置持仓`}>
+                    <button
+                      type="button"
+                      className="widget-fund-button"
+                      onClick={() => setIsEditing(true)}
+                    >
+                      <span>{row.fund.name}</span>
+                      <small>持仓</small>
+                    </button>
+                  </td>
                   <td>{row.nav === null ? '--' : row.nav.toFixed(4)}</td>
                   <td className={colorClass(row.profitTotal || 0)}>{signedMoney(row.profitTotal)}</td>
                   <td className={colorClass(row.holdingRate || 0)}>{signedPercent(row.holdingRate)}</td>
@@ -2064,7 +2289,7 @@ function DesktopWidget({
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan="7" className="widget-empty">暂无基金，点击“行情中心”搜索添加</td>
+                  <td colSpan="7" className="widget-empty">暂无基金，点击“行情中心”搜索添加，添加后显示实时估值</td>
                 </tr>
               )}
             </tbody>
@@ -2073,16 +2298,18 @@ function DesktopWidget({
 
         <div className="widget-toolbar">
           <button type="button" onClick={() => setShowTools((value) => !value)}>行情中心</button>
-          <button type="button" onClick={toggleDesktopAlwaysOnTop}>置顶</button>
+          <button type="button" onClick={() => setIsEditing(true)}>编辑</button>
+          <button type="button" className={isPinned ? 'active' : ''} onClick={handleTogglePinned}>
+            {isPinned ? '已置顶' : '未置顶'}
+          </button>
+          <button type="button" onClick={hideDesktopWindowToTray}>托盘</button>
           <button type="button" onClick={manualRefresh} disabled={refreshing || funds.length === 0}>
             <RefreshIcon width="14" height="14" className={refreshing ? 'spin' : ''} />
           </button>
-          <button type="button" onClick={minimizeDesktopWindow}>-</button>
-          <button type="button" onClick={closeDesktopWindow}>×</button>
         </div>
 
         <div className="widget-summary">
-          <span>总金额:{summary.amount.toFixed(2)}</span>
+          <span className="flat">总金额:{summary.amount.toFixed(2)}</span>
           <span className={colorClass(summary.today)}>日收益:{summary.today.toFixed(2)}</span>
           <span className={colorClass(summary.total)}>持有收益:{summary.total.toFixed(2)}</span>
           <label>
@@ -2095,6 +2322,7 @@ function DesktopWidget({
               value={opacity}
               onChange={(event) => setOpacity(Number(event.target.value))}
             />
+            <strong>{Math.round(opacity * 100)}%</strong>
           </label>
         </div>
 
@@ -3367,27 +3595,42 @@ export default function HomePage() {
 
   if (isDesktopApp) {
     return (
-      <DesktopWidget
-        funds={funds}
-        displayFunds={displayFunds}
-        holdings={holdings}
-        marketIndexes={marketIndexes}
-        refreshMs={refreshMs}
-        refreshing={refreshing}
-        loading={loading}
-        searchTerm={searchTerm}
-        searchResults={searchResults}
-        selectedFunds={selectedFunds}
-        isSearching={isSearching}
-        showDropdown={showDropdown}
-        dropdownRef={dropdownRef}
-        setShowDropdown={setShowDropdown}
-        handleSearchInput={handleSearchInput}
-        toggleSelectFund={toggleSelectFund}
-        addFund={addFund}
-        manualRefresh={manualRefresh}
-        getHoldingProfit={getHoldingProfit}
-      />
+      <>
+        <DesktopWidget
+          funds={funds}
+          displayFunds={displayFunds}
+          holdings={holdings}
+          marketIndexes={marketIndexes}
+          refreshMs={refreshMs}
+          refreshing={refreshing}
+          loading={loading}
+          searchTerm={searchTerm}
+          searchResults={searchResults}
+          selectedFunds={selectedFunds}
+          isSearching={isSearching}
+          showDropdown={showDropdown}
+          dropdownRef={dropdownRef}
+          setShowDropdown={setShowDropdown}
+          handleSearchInput={handleSearchInput}
+          toggleSelectFund={toggleSelectFund}
+          addFund={addFund}
+          manualRefresh={manualRefresh}
+          getHoldingProfit={getHoldingProfit}
+          openHoldingModal={(fund) => setHoldingModal({ open: true, fund })}
+          saveHolding={handleSaveHolding}
+          requestRemoveFund={requestRemoveFund}
+        />
+        <AnimatePresence>
+          {holdingModal.open && (
+            <HoldingEditModal
+              fund={holdingModal.fund}
+              holding={holdings[holdingModal.fund?.code]}
+              onClose={() => setHoldingModal({ open: false, fund: null })}
+              onSave={(data) => handleSaveHolding(holdingModal.fund?.code, data)}
+            />
+          )}
+        </AnimatePresence>
+      </>
     );
   }
 

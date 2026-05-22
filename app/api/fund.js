@@ -440,7 +440,7 @@ export const fetchMarketIndexes = async () => {
       const percent = Number(parts[32] ?? parts[5]);
       const timestamp = parts[30] || '';
       const time = timestamp.length >= 12
-        ? `${timestamp.slice(8, 10)}:${timestamp.slice(10, 12)}`
+        ? `${timestamp.slice(4, 6)}-${timestamp.slice(6, 8)} ${timestamp.slice(8, 10)}:${timestamp.slice(10, 12)}`
         : '';
       return {
         ...item,
