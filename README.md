@@ -54,16 +54,14 @@
    npm install
    ```
 
-3. （可选）配置环境变量（下面有配置说明）：
+3. （可选）配置反馈功能环境变量：
    ```bash
    cp env.example .env.local
    ```
    按照 `env.example` 填入以下值：
-   - `NEXT_PUBLIC_SUPABASE_URL`：Supabase 项目 URL
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`：Supabase 匿名公钥
    - `NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY`：Web3Forms Access Key
 
-   注：如不使用登录和反馈功能，可无需设置
+   注：如不使用反馈功能，可无需设置
 
 4. 运行开发服务器：
    ```bash
@@ -71,33 +69,13 @@
    ```
    访问 [http://localhost:3000](http://localhost:3000) 查看效果。
 
-### supabase 配置说明
+### Web3Forms 配置说明
 #### 获取配置：
-1. 获取 Supabase 配置
-   - Supabase 用于数据存储（云端同步）和用户登录功能
-   - 访问Supabase官网 [https://supabase.com/](https://supabase.com/) 并注册/登录账号。
-   - 点击 "New Project" 创建一个新项目。
-   - 项目创建完成后，进入项目仪表盘。
-   - 点击左侧菜单底部的 Settings (设置) 图标（齿轮形状），然后选择 Data API。 在 Project URL 下找到 URL，这就是 NEXT_PUBLIC_SUPABASE_URL。
-   - 在 API keys 下找到 Publishable key，这就是 NEXT_PUBLIC_SUPABASE_ANON_KEY。
-
-2. 获取 Web3Forms 配置
+1. 获取 Web3Forms 配置
    - Web3Forms 用于接收网页上的“意见反馈”邮件。
    - 访问Web3Forms 官网 [https://web3forms.com/](https://web3forms.com/)。
    - 在首页输入您的接收邮箱地址，点击 "Create your Access Key"。
    - 您的邮箱将会收到一封包含 Access Key 的邮件，这串字符就是 NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY。
-
-#### 配置说明：
-1. 邮件数量修改
-    supabase 免费项目自带每小时2条邮件服务。如果觉得额度不够，可以改成自己的邮箱SMTP。修改路径在 supabase控制台 → Authentication → Email → SMTP Settings。  
-    之后可在 Rate Limits ，自由修改每小时邮件数量。
-
-2. 修改接收到的邮件为验证码
-在 supabase控制台 → Authentication → Email → Confirm sign up，选择 `{{.token}}`。  
-
-3. 目前项目用到的 sql 语句，查看项目 supabase.sql 文件。
-
-更多 supabase 相关内容查阅官方文档。
 
 
 ### 构建与Github部署

@@ -65,10 +65,9 @@ export default function Announcement() {
             
             <div style={{ color: 'var(--text)', lineHeight: '1.6', fontSize: '15px' }}>
               <div>感谢大家反馈的需求，现已增加如下功能：</div>
-              <div style={{ marginLeft: '8px' }}>1. 邮箱账号登录，以支持同步本地数据至云端。</div>
-              <div style={{ marginLeft: '8px' }}>2. 加减仓。</div>
-              <div style={{ marginLeft: '8px' }}>3. 版本更新提示。</div>
-              <div style={{ marginLeft: '8px' }}>4. 性能优化。</div>
+              <div style={{ marginLeft: '8px' }}>1. 加减仓。</div>
+              <div style={{ marginLeft: '8px' }}>2. 版本更新提示。</div>
+              <div style={{ marginLeft: '8px' }}>3. 性能优化。</div>
               <div style={{ marginTop: '8px' }}>以下功能会在下一个版本上线：</div>
               <div style={{ marginLeft: '8px' }}>1. 定投。</div>
               <div style={{ marginLeft: '8px' }}>2. 基金历史 K 线。</div>

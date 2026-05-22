@@ -79,6 +79,9 @@ fabric.properties
 
 /node_modules/
 /.next/
+/dist/
+/src-tauri/target/
+/src-tauri/gen/
 .vscode/
 
 .env.local

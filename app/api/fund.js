@@ -422,6 +422,39 @@ export const fetchShanghaiIndexDate = async () => {
   });
 };
 
+export const fetchMarketIndexes = async () => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return [];
+  const items = [
+    { code: 'sh000001', label: '上证指数' },
+    { code: 'sh000300', label: '沪深300' },
+    { code: 'sz399001', label: '深证成指' },
+    { code: 'sz399006', label: '创业板指' }
+  ];
+  try {
+    await loadScript(`https://qt.gtimg.cn/q=${items.map((item) => item.code).join(',')}&_=${Date.now()}`);
+    return items.map((item) => {
+      const raw = window[`v_${item.code}`];
+      const parts = raw ? raw.split('~') : [];
+      const value = Number(parts[3]);
+      const change = Number(parts[31] ?? parts[4]);
+      const percent = Number(parts[32] ?? parts[5]);
+      const timestamp = parts[30] || '';
+      const time = timestamp.length >= 12
+        ? `${timestamp.slice(8, 10)}:${timestamp.slice(10, 12)}`
+        : '';
+      return {
+        ...item,
+        value: Number.isFinite(value) ? value : null,
+        change: Number.isFinite(change) ? change : null,
+        percent: Number.isFinite(percent) ? percent : null,
+        time
+      };
+    });
+  } catch {
+    return items.map((item) => ({ ...item, value: null, change: null, percent: null }));
+  }
+};
+
 export const fetchLatestRelease = async () => {
   // 暂时禁用版本检查，避免控制台 404 报错
   return null;

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "养基小宝",
+  "version": "1.0.0",
+  "identifier": "cn.ningzhengsheng.fundbaby",
+  "build": {
+    "beforeDevCommand": "npm run dev -- --hostname 127.0.0.1 --port 3000",
+    "devUrl": "http://127.0.0.1:3000",
+    "beforeBuildCommand": "cross-env FUND_BABY_DESKTOP=1 next build",
+    "frontendDist": "../out"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "养基小宝",
+        "width": 620,
+        "height": 360,
+        "minWidth": 520,
+        "minHeight": 260,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "shadow": false,
+        "resizable": true,
+        "backgroundColor": "#00000000"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' https://fundf10.eastmoney.com https://fundsuggest.eastmoney.com https://qt.gtimg.cn https://fundgz.1234567.com.cn https://fund.eastmoney.com; connect-src 'self' https://web.ifzq.gtimg.cn https://api.web3forms.com; img-src 'self' data: asset: https://asset.localhost; style-src 'self' 'unsafe-inline'; frame-src 'none'; object-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}

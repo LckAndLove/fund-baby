@@ -1,16 +1,19 @@
 {
   "name": "fund-baby",
-  "version": "1.0",
+  "version": "1.0.0",
+  "description": "实时基金估值与持仓追踪桌面应用",
+  "author": "zhengshengning",
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:desktop": "tauri dev",
     "build": "next build",
-    "start": "next start"
+    "build:desktop": "tauri build",
+    "start": "next start",
+    "pack:desktop": "tauri build"
   },
   "dependencies": {
-    "@dicebear/collection": "^9.3.1",
-    "@dicebear/core": "^9.3.1",
-    "@supabase/supabase-js": "^2.78.0",
+    "@tauri-apps/api": "^2.11.0",
     "dayjs": "^1.11.19",
     "echarts": "^6.0.0",
     "framer-motion": "^12.29.2",
@@ -22,6 +25,8 @@
     "node": ">=20.9.0"
   },
   "devDependencies": {
-    "babel-plugin-react-compiler": "^1.0.0"
+    "@tauri-apps/cli": "^2.11.2",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "cross-env": "^10.1.0"
   }
 }
