@@ -1999,7 +1999,8 @@ function DesktopWidget({
   getHoldingProfit,
   openHoldingModal,
   saveHolding,
-  requestRemoveFund
+  requestRemoveFund,
+  isTradingDay
 }) {
   const maxVisibleRows = 10;
   const tableHeaderHeight = 28;
@@ -2019,6 +2020,7 @@ function DesktopWidget({
   const [isPinned, setIsPinned] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
+  const [clockTick, setClockTick] = useState(0);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -2070,6 +2072,11 @@ function DesktopWidget({
       .then((win) => win.isAlwaysOnTop())
       .then(setIsPinned)
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => setClockTick((value) => value + 1), 60 * 1000);
+    return () => clearInterval(timer);
   }, []);
 
   const currentDate = formatDate();
@@ -2155,7 +2162,20 @@ function DesktopWidget({
   };
 
   const colorClass = (value) => value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
-  const marketStatus = rows.length > 0 && rows.every((row) => row.isClosed) ? '休市中' : '盘中';
+  const marketStatus = (() => {
+    clockTick;
+    if (!isTradingDay) return '休市中';
+    const now = nowInTz();
+    const minutes = now.hour() * 60 + now.minute();
+    const morningOpen = 9 * 60 + 30;
+    const morningClose = 11 * 60 + 30;
+    const afternoonOpen = 13 * 60;
+    const afternoonClose = 15 * 60;
+    const isMarketOpen =
+      (minutes >= morningOpen && minutes <= morningClose) ||
+      (minutes >= afternoonOpen && minutes <= afternoonClose);
+    return isMarketOpen ? '盘中' : '休市中';
+  })();
   const indexes = marketIndexes.length ? marketIndexes : [
     { code: 'sh000001', label: '上证指数', value: null, change: null, percent: null, time: '' },
     { code: 'sh000300', label: '沪深300', value: null, change: null, percent: null, time: '' },
@@ -3864,6 +3884,7 @@ export default function HomePage() {
           openHoldingModal={(fund) => setHoldingModal({ open: true, fund })}
           saveHolding={handleSaveHolding}
           requestRemoveFund={requestRemoveFund}
+          isTradingDay={isTradingDay}
         />
         <AnimatePresence>
           {holdingModal.open && (
