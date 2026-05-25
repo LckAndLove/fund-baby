@@ -1,132 +1,171 @@
-# 养基小宝-实时基金估值 (bund-baby)
+# 养基小宝
 
-**在线预览地址：[https://fund-baby.ningzhengsheng.cn/](https://fund-baby.ningzhengsheng.cn/)**
-> 由于某些平台不能在实时看见基金的估值，所以做了一个基金估值的网站。
+实时基金估值、持仓收益和桌面悬浮小组件。
 
-![alt text](app/assets/fund-baby-img1.png)
-![alt text](app/assets/fund-baby-img2.png)
+养基小宝最初是一个纯前端基金估值看板，现在同时支持 Web 页面和 Windows 桌面端。它可以添加基金自选、查看实时估值和重仓走势，也可以在桌面上常驻一个透明小面板，用于快速查看总估值、日收益、持有收益和持仓标签。
 
+在线预览：[https://fund-baby.ningzhengsheng.cn/](https://fund-baby.ningzhengsheng.cn/)
 
-## 📖 使用说明
+![首页截图](app/assets/fund-baby-img1.png)
+![详情截图](app/assets/fund-baby-img2.png)
 
-1. **添加基金**：在顶部输入框输入 6 位基金代码（如 `110022`），点击“添加”。
-2. **查看详情**：卡片将展示实时估值及前 10 重仓股的占比与今日涨跌。
-3. **调整频率**：点击右上角“设置”图标，可调整自动刷新的间隔时间。
-4. **删除基金**：点击卡片右上角的红色删除图标即可移除。
+## 功能
 
+- 实时估值：根据基金代码获取单位净值、估算净值、涨跌幅和更新时间。
+- 重仓跟踪：展示基金重仓股票，并结合行情数据估算盘中表现。
+- 自选管理：支持添加、删除、分组、搜索和本地持久化。
+- 持仓收益：可录入持仓份额和成本，计算当前估值、日收益、持有收益和收益率。
+- 桌面小组件：Windows 下支持无边框透明悬浮窗、置顶、拖动、托盘菜单和快捷键。
+- F2 快捷键：按 `F2` 在主面板和左下角日收益小条之间切换；恢复主面板时会自动刷新一次。
+- 托盘设置：支持开机自启动、透明度调节、显示/隐藏和退出。
+- 自动刷新：默认每 10 秒刷新一次，也支持手动刷新。
+- 纯前端数据：主要通过公开行情接口获取数据，不需要自建后端服务。
 
-## ✨ 特性
+## 桌面端
 
-- **实时估值**：通过输入基金编号，实时获取并展示基金的单位净值、估值净值及实时涨跌幅。
-- **重仓追踪**：自动获取基金前 10 大重仓股票，并实时追踪重仓股的盘中涨跌情况。支持收起/展开展示。
-- **纯前端运行**：采用 JSONP 方案直连东方财富、腾讯财经等公开接口，彻底解决跨域问题，支持在 GitHub Pages 等静态环境直接部署。
-- **本地持久化**：使用 `localStorage` 存储已添加的基金列表及配置信息，刷新不丢失。
-- **响应式设计**：完美适配 PC 与移动端。针对移动端优化了文字展示、间距及交互体验。
-- **自选功能**：支持将基金添加至“自选”列表，通过 Tab 切换展示全部基金或仅自选基金。自选状态支持持久化及同步清理。
-- **可自定义频率**：支持设置自动刷新间隔（5秒 - 300秒），并提供手动刷新按钮。
+桌面端基于 Tauri 2 构建，适合把基金看板作为日常悬浮窗口使用。
 
+常用操作：
 
-## 🛠 技术栈
+- `F2`：主面板和日收益小条切换。
+- 托盘图标左键：显示主面板并刷新。
+- 托盘菜单：开机自启动、透明度、显示、隐藏到托盘、退出。
+- 面板内刷新按钮：立即拉取最新行情。
+- 编辑模式：维护基金列表、持仓份额和成本。
 
-> 一个基于 Next.js 开发的纯前端基金估值与重仓股实时追踪工具。采用玻璃拟态设计（Glassmorphism），支持移动端适配，且无需后端服务器即可运行。
+日收益小条显示当前持仓的总日收益，并固定在左下角。它不是 Windows 任务栏组件，而是一个普通的置顶透明窗口。
 
-- **框架**：[Next.js官网](https://nextjs.org/) , [Next.js入门指南：从零构建现代Web应用](https://ningzhengsheng.cn/2026/02/10/Nextjs%E7%BD%91%E9%A1%B5%E5%BC%80%E5%8F%91%E5%85%A5%E9%97%A8%E6%8C%87%E5%8D%97/)
-- **样式**：原生 CSS (Global CSS) + 玻璃拟态设计
-- **数据源**：
-  - 基金估值：天天基金 (JSONP)
-  - 重仓数据：东方财富 (HTML Parsing)
-  - 股票行情：腾讯财经 (Script Tag Injection)
-- **部署**：GitHub Actions + GitHub Pages
+## 技术栈
 
+- Next.js 16
+- React 18
+- Tauri 2
+- ECharts
+- dayjs
+- 原生 CSS
 
-## 🚀 快速开始
+数据来源包括天天基金、东方财富、腾讯财经等公开接口。接口可用性和数据准确性受第三方服务影响。
 
-### 本地开发
+## 本地开发
 
-1. 克隆仓库：
-   ```bash
-   git clone https://github.com/zhengshengning/fund-baby.git
-   cd fund-baby
-   ```
+环境要求：
 
-2. 安装依赖：
-   ```bash
-   npm install
-   ```
+- Node.js `>=20.9.0`
+- npm
+- Rust stable
+- Windows 桌面端构建需要 Tauri 相关系统依赖
 
-3. （可选）配置反馈功能环境变量：
-   ```bash
-   cp env.example .env.local
-   ```
-   按照 `env.example` 填入以下值：
-   - `NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY`：Web3Forms Access Key
+安装依赖：
 
-   注：如不使用反馈功能，可无需设置
+```bash
+npm install
+```
 
-4. 运行开发服务器：
-   ```bash
-   npm run dev
-   ```
-   访问 [http://localhost:3000](http://localhost:3000) 查看效果。
+启动 Web 开发服务：
 
-### Web3Forms 配置说明
-#### 获取配置：
-1. 获取 Web3Forms 配置
-   - Web3Forms 用于接收网页上的“意见反馈”邮件。
-   - 访问Web3Forms 官网 [https://web3forms.com/](https://web3forms.com/)。
-   - 在首页输入您的接收邮箱地址，点击 "Create your Access Key"。
-   - 您的邮箱将会收到一封包含 Access Key 的邮件，这串字符就是 NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY。
+```bash
+npm run dev
+```
 
+访问：
 
-### 构建与Github部署
+```text
+http://localhost:3000
+```
 
-本项目已配置 GitHub Actions，可以直接部署在github上。
-（操作：Settings → Pages → Build and deployment → Source选择github Actions）。
-每次推送到 `main` 分支时，会自动执行构建并部署到 GitHub Pages。
-如需使用登陆功能，请在 GitHub 项目 Settings → Secrets and variables → Actions 中创建对应的 Repository secrets（字段名称与 `.env.local` 保持一致）。
+启动桌面开发模式：
 
-若要手动构建：
+```bash
+npm run dev:desktop
+```
+
+## 构建
+
+构建 Web 静态产物：
+
 ```bash
 npm run build
 ```
-静态文件将生成在 `out` 目录下。
 
-### Docker运行
+构建 Windows 桌面应用：
 
-1. 构建镜像
+```bash
+npm run build:desktop
 ```
+
+构建完成后，桌面可执行文件位于：
+
+```text
+src-tauri/target/release/fund-baby.exe
+```
+
+安装包位于：
+
+```text
+src-tauri/target/release/bundle/nsis/
+```
+
+如果构建时报 `fund-baby.exe` 无法删除，通常是旧程序还在运行，先退出托盘程序或结束进程后再构建。
+
+## 环境变量
+
+反馈功能使用 Web3Forms。不开启反馈功能时可以不配置。
+
+复制示例文件：
+
+```bash
+cp env.example .env.local
+```
+
+可选变量：
+
+```text
+NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY=你的 Web3Forms Access Key
+```
+
+## Docker
+
+构建镜像：
+
+```bash
 docker build -t fund-baby .
 ```
 
-2. 启动容器
-```
-docker run -d -p 3000:3000 --name fund fund-baby
+启动容器：
+
+```bash
+docker run -d -p 3000:3000 --name fund-baby fund-baby
 ```
 
-#### docker-compose
-```
+使用 docker compose：
+
+```bash
 docker compose up -d
 ```
 
+## 部署
 
-## 📝 免责声明
+项目可以部署到 GitHub Pages、Vercel 或其他静态站点托管服务。
 
-本项目所有数据均来自公开接口，仅供个人学习及参考使用。数据可能存在延迟，不作为任何投资建议。
+当前仓库包含 GitHub Actions 配置。启用 GitHub Pages 时，可在仓库设置中选择：
 
+```text
+Settings -> Pages -> Build and deployment -> Source: GitHub Actions
+```
 
-## 📄 开源协议 (License)
+推送到 `main` 分支后会触发自动构建和部署。
 
-本项目采用 **[GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.html)**（AGPL-3.0）开源协议。
+## 免责声明
 
-- **允许**：自由使用、修改、分发本软件；若你通过网络服务向用户提供基于本项目的修改版本，须向该服务的用户提供对应源代码。
-- **要求**：基于本项目衍生或修改的作品需以相同协议开源，并保留版权声明与协议全文。
-- **无担保**：软件按「原样」提供，不提供任何明示或暗示的担保。
+本项目仅供个人学习、记录和参考。所有行情、估值和收益计算结果都可能存在延迟、误差或接口不可用情况，不构成任何投资建议。投资决策请以基金公司、交易平台和官方披露信息为准。
 
-完整协议文本见仓库根目录 [LICENSE](./LICENSE) 文件，或 [GNU AGPL v3 官方说明](https://www.gnu.org/licenses/agpl-3.0.html)。
+## License
 
+本项目基于 [GNU Affero General Public License v3.0](LICENSE) 开源。
 
----
-## 💬 联系
-Github主页：[https://github.com/zhengshengning](https://github.com/zhengshengning)
+如果你修改本项目并通过网络服务向用户提供使用，也需要向用户提供对应源代码，并继续使用相同协议。
 
-个人博客：[https://ningzhengsheng.cn](https://ningzhengsheng.cn)
+## 联系
+
+- GitHub：[https://github.com/zhengshengning](https://github.com/zhengshengning)
+- 博客：[https://ningzhengsheng.cn](https://ningzhengsheng.cn)
