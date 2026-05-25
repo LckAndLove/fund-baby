@@ -24,9 +24,10 @@ const FULL_WINDOW_MAX_SIZE: PhysicalSize<u32> = PhysicalSize {
     height: 700,
 };
 const COMPACT_WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize {
-    width: 225,
+    width: 132,
     height: 38,
 };
+const COMPACT_WINDOW_MAX_WIDTH: u32 = 220;
 const COMPACT_WINDOW_MARGIN: i32 = 4;
 const DESKTOP_STATE_FILE: &str = "desktop-state.json";
 const PROGRAMMATIC_MOVE_TOLERANCE: i32 = 4;
@@ -217,7 +218,10 @@ fn show_compact_profit_window(app: &tauri::AppHandle) {
         let _ = window.show();
         let _ = window.set_resizable(false);
         let _ = window.set_min_size(Some(COMPACT_WINDOW_SIZE));
-        let _ = window.set_max_size(Some(COMPACT_WINDOW_SIZE));
+        let _ = window.set_max_size(Some(PhysicalSize::new(
+            COMPACT_WINDOW_MAX_WIDTH,
+            COMPACT_WINDOW_SIZE.height,
+        )));
         let _ = window.set_size(COMPACT_WINDOW_SIZE);
         suppress_programmatic_move(app, position);
         let _ = window.set_position(position);
@@ -476,7 +480,7 @@ fn main() {
                     let is_compact_size = window
                         .outer_size()
                         .map(|size| {
-                            size.width <= COMPACT_WINDOW_SIZE.width + 8
+                            size.width <= COMPACT_WINDOW_MAX_WIDTH + 8
                                 && size.height <= COMPACT_WINDOW_SIZE.height + 8
                         })
                         .unwrap_or(false);

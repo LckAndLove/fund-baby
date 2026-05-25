@@ -2009,6 +2009,7 @@ function DesktopWidget({
   const widgetToolbarRef = useRef(null);
   const widgetSummaryRef = useRef(null);
   const widgetSearchRef = useRef(null);
+  const compactStripRef = useRef(null);
   const [opacity, setOpacity] = useState(() => {
     if (typeof window === 'undefined') return 0.92;
     const saved = Number(window.localStorage.getItem('widgetOpacity') || '0.92');
@@ -2173,10 +2174,26 @@ function DesktopWidget({
     if (value === null || value === undefined || !Number.isFinite(value)) return '--';
     return `${value > 0 ? '' : ''}${value.toFixed(2)}%`;
   };
+  const compactMoney = (value) => {
+    if (value === null || value === undefined || !Number.isFinite(value)) return '--';
+    const sign = value > 0 ? '+' : value < 0 ? '-' : '';
+    const abs = Math.abs(value);
+    if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(2)}M`;
+    if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(2)}K`;
+    return `${sign}${abs.toFixed(2)}`;
+  };
   const compactTime = (() => {
     const times = rows.map((row) => row.updateTime).filter((value) => value && value !== '--');
     return times[0] || nowInTz().format('HH:mm');
   })();
+
+  useLayoutEffect(() => {
+    if (!isCompact || !isDesktopRuntime() || !compactStripRef.current) return;
+    const width = Math.ceil(compactStripRef.current.scrollWidth);
+    const nextWidth = Math.min(220, Math.max(96, width));
+    resizeDesktopWindow(nextWidth, 38).catch(() => {});
+  }, [isCompact, summary.today, compactTime]);
+
   const updateHoldingField = (fund, field, value) => {
     const current = holdings[fund.code] || {};
     const numericValue = Number(value);
@@ -2206,6 +2223,7 @@ function DesktopWidget({
     return (
       <div className="desktop-widget-shell compact-mode" style={{ '--widget-opacity': opacity }}>
         <div
+          ref={compactStripRef}
           className="desktop-profit-strip"
           onMouseDown={handleCompactMouseDown}
           onDoubleClick={(event) => {
@@ -2218,7 +2236,7 @@ function DesktopWidget({
           }}
         >
           <span className={colorClass(summary.today)}>
-            {summary.today > 0 ? '+' : ''}{summary.today.toFixed(2)}
+            {compactMoney(summary.today)}
           </span>
           <span>{compactTime}</span>
         </div>
