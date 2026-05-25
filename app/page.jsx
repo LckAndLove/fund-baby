@@ -56,6 +56,14 @@ const toggleDesktopAlwaysOnTop = async () => {
   }
 };
 
+const keepDesktopAlwaysOnTop = async () => {
+  if (window.__TAURI_INTERNALS__) {
+    const win = await getTauriWindow();
+    await win.setAlwaysOnTop(true);
+    return true;
+  }
+};
+
 const getReferenceNav = (fund) => {
   const estimatedNav = fund?.estPricedCoverage > 0.05 ? fund?.estGsz : fund?.gsz;
   const candidates = [estimatedNav, fund?.dwjz];
@@ -2024,6 +2032,24 @@ function DesktopWidget({
       .then((win) => win.isAlwaysOnTop())
       .then(setIsPinned)
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktopRuntime()) return;
+    let disposed = false;
+    const pinWindow = () => {
+      keepDesktopAlwaysOnTop()
+        .then((pinned) => {
+          if (!disposed && typeof pinned === 'boolean') setIsPinned(pinned);
+        })
+        .catch(() => {});
+    };
+    pinWindow();
+    const timer = window.setInterval(pinWindow, 3000);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
