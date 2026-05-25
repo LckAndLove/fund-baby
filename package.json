@@ -1,6 +1,6 @@
 {
   "name": "fund-baby",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "实时基金估值与持仓追踪桌面应用",
   "author": "zhengshengning",
   "private": true,

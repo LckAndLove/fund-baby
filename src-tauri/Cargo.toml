@@ -1,6 +1,6 @@
 [package]
 name = "fund-baby"
-version = "1.0.0"
+version = "1.0.1"
 description = "实时基金估值与持仓追踪桌面应用"
 authors = ["zhengshengning"]
 edition = "2021"
