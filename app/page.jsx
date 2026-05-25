@@ -2150,6 +2150,10 @@ function DesktopWidget({
             event.preventDefault();
             event.stopPropagation();
           }}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
         >
           <span className={colorClass(summary.today)}>
             {summary.today > 0 ? '+' : ''}{summary.today.toFixed(2)}
