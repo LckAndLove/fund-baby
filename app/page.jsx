@@ -2082,9 +2082,10 @@ function DesktopWidget({
   };
 
   const currentDate = formatDate();
-  const rows = displayFunds.slice(0, 8).map((fund) => {
+  const allRows = displayFunds.map((fund) => {
     const holding = holdings[fund.code];
     const profit = getHoldingProfit(fund, holding);
+    const isHoldingActive = Boolean(profit);
     const hasIntradayTime = typeof fund.gztime === 'string' && /\d{2}:\d{2}/.test(fund.gztime);
     const hasTodayIntradayTime = hasIntradayTime && fund.gztime.startsWith(currentDate);
     const dateText = (fund.jzrq || fund.gztime || fund.time || '').replace(/^\d{4}-/, '').slice(0, 5);
@@ -2106,6 +2107,7 @@ function DesktopWidget({
     return {
       fund,
       isClosed,
+      isHoldingActive,
       nav: Number.isFinite(nav) ? nav : null,
       rate: Number.isFinite(rate) ? rate : null,
       profitToday: typeof profit?.profitToday === 'number' ? profit.profitToday : null,
@@ -2114,9 +2116,10 @@ function DesktopWidget({
       updateTime
     };
   });
+  const rows = allRows.slice(0, 10);
 
-  const summary = rows.reduce((acc, row) => {
-    const amount = getHoldingProfit(row.fund, holdings[row.fund.code])?.amount || 0;
+  const summary = allRows.reduce((acc, row) => {
+    const amount = row.isHoldingActive ? getHoldingProfit(row.fund, holdings[row.fund.code])?.amount || 0 : 0;
     if (amount > 0) acc.amount += amount;
     if (typeof row.profitToday === 'number') acc.today += row.profitToday;
     if (typeof row.profitTotal === 'number') acc.total += row.profitTotal;
@@ -2413,7 +2416,7 @@ function DesktopWidget({
                       onClick={() => setIsEditing(true)}
                     >
                       <span>{row.fund.name}</span>
-                      <small>持仓</small>
+                      {row.isHoldingActive && <small>持仓</small>}
                     </button>
                   </td>
                   <td>{row.nav === null ? '--' : row.nav.toFixed(4)}</td>
