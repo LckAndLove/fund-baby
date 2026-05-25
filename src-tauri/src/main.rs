@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::sync::Mutex;
+use serde::{Deserialize, Serialize};
+use std::{fs, sync::Mutex};
 use tauri::{
     menu::{CheckMenuItem, MenuBuilder, MenuItem, Submenu},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
@@ -26,12 +27,84 @@ const COMPACT_WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize {
     height: 38,
 };
 const COMPACT_WINDOW_MARGIN: i32 = 4;
+const DESKTOP_STATE_FILE: &str = "desktop-state.json";
+const PROGRAMMATIC_MOVE_TOLERANCE: i32 = 4;
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
+struct SavedPosition {
+    x: i32,
+    y: i32,
+}
+
+#[derive(Default, Deserialize, Serialize)]
+struct DesktopState {
+    compact_position: Option<SavedPosition>,
+}
 
 #[derive(Default)]
 struct BossKeyState {
     last_full_position: Mutex<Option<PhysicalPosition<i32>>>,
     last_compact_position: Mutex<Option<PhysicalPosition<i32>>>,
     is_compact: Mutex<bool>,
+    suppressed_move_position: Mutex<Option<PhysicalPosition<i32>>>,
+}
+
+impl From<PhysicalPosition<i32>> for SavedPosition {
+    fn from(position: PhysicalPosition<i32>) -> Self {
+        Self {
+            x: position.x,
+            y: position.y,
+        }
+    }
+}
+
+impl From<SavedPosition> for PhysicalPosition<i32> {
+    fn from(position: SavedPosition) -> Self {
+        PhysicalPosition::new(position.x, position.y)
+    }
+}
+
+fn desktop_state_path(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join(DESKTOP_STATE_FILE))
+}
+
+fn read_desktop_state(app: &tauri::AppHandle) -> DesktopState {
+    desktop_state_path(app)
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+fn write_desktop_state(app: &tauri::AppHandle, state: &DesktopState) {
+    if let Some(path) = desktop_state_path(app) {
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        if let Ok(text) = serde_json::to_string_pretty(state) {
+            let _ = fs::write(path, text);
+        }
+    }
+}
+
+fn save_compact_position(app: &tauri::AppHandle, position: PhysicalPosition<i32>) {
+    let mut state = read_desktop_state(app);
+    state.compact_position = Some(position.into());
+    write_desktop_state(app, &state);
+}
+
+fn suppress_programmatic_move(app: &tauri::AppHandle, position: PhysicalPosition<i32>) {
+    if let Ok(mut suppressed_position) = app.state::<BossKeyState>().suppressed_move_position.lock()
+    {
+        *suppressed_position = Some(position);
+    }
+}
+
+fn is_near_position(a: PhysicalPosition<i32>, b: PhysicalPosition<i32>) -> bool {
+    (a.x - b.x).abs() <= PROGRAMMATIC_MOVE_TOLERANCE
+        && (a.y - b.y).abs() <= PROGRAMMATIC_MOVE_TOLERANCE
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
@@ -51,6 +124,7 @@ fn show_main_window(app: &tauri::AppHandle) {
         let _ = window.set_min_size(Some(FULL_WINDOW_MIN_SIZE));
         let _ = window.set_max_size(Some(FULL_WINDOW_MAX_SIZE));
         let _ = window.set_size(FULL_WINDOW_SIZE);
+        suppress_programmatic_move(app, position);
         let _ = window.set_position(position);
         let _ = window.set_focus();
         let _ = window.emit("desktop-widget-compact", false);
@@ -72,11 +146,12 @@ fn show_main_window_instant(app: &tauri::AppHandle) {
         let _ = window.set_min_size(Some(FULL_WINDOW_MIN_SIZE));
         let _ = window.set_max_size(Some(FULL_WINDOW_MAX_SIZE));
         let _ = window.set_size(FULL_WINDOW_SIZE);
-        let _ = window.set_position(position);
-        let _ = window.set_focus();
         if let Ok(mut is_compact) = app.state::<BossKeyState>().is_compact.lock() {
             *is_compact = false;
         }
+        suppress_programmatic_move(app, position);
+        let _ = window.set_position(position);
+        let _ = window.set_focus();
         let _ = window.emit("desktop-widget-compact", false);
         let _ = window.emit("desktop-widget-refresh", ());
     }
@@ -143,6 +218,7 @@ fn show_compact_profit_window(app: &tauri::AppHandle) {
         let _ = window.set_min_size(Some(COMPACT_WINDOW_SIZE));
         let _ = window.set_max_size(Some(COMPACT_WINDOW_SIZE));
         let _ = window.set_size(COMPACT_WINDOW_SIZE);
+        suppress_programmatic_move(app, position);
         let _ = window.set_position(position);
         if let Ok(mut is_compact) = app.state::<BossKeyState>().is_compact.lock() {
             *is_compact = true;
@@ -198,6 +274,15 @@ fn main() {
         )
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            let saved_state = read_desktop_state(app.handle());
+            if let Some(position) = saved_state.compact_position {
+                if let Ok(mut last_compact_position) =
+                    app.state::<BossKeyState>().last_compact_position.lock()
+                {
+                    *last_compact_position = Some(position.into());
+                }
+            }
+
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_skip_taskbar(true);
             }
@@ -298,6 +383,24 @@ fn main() {
         .on_window_event(|window, event| match event {
             WindowEvent::Moved(position) => {
                 let app = window.app_handle();
+                let suppressed = app
+                    .state::<BossKeyState>()
+                    .suppressed_move_position
+                    .lock()
+                    .ok()
+                    .and_then(|mut suppressed_position| {
+                        let should_suppress = suppressed_position
+                            .map(|target| is_near_position(target, *position))
+                            .unwrap_or(false);
+                        if should_suppress {
+                            *suppressed_position = None;
+                        }
+                        Some(should_suppress)
+                    })
+                    .unwrap_or(false);
+                if suppressed {
+                    return;
+                }
                 let is_compact = app
                     .state::<BossKeyState>()
                     .is_compact
@@ -305,11 +408,22 @@ fn main() {
                     .map(|is_compact| *is_compact)
                     .unwrap_or(false);
                 if is_compact {
+                    let is_compact_size = window
+                        .outer_size()
+                        .map(|size| {
+                            size.width <= COMPACT_WINDOW_SIZE.width + 8
+                                && size.height <= COMPACT_WINDOW_SIZE.height + 8
+                        })
+                        .unwrap_or(false);
+                    if !is_compact_size {
+                        return;
+                    }
                     if let Ok(mut last_compact_position) =
                         app.state::<BossKeyState>().last_compact_position.lock()
                     {
                         *last_compact_position = Some(*position);
                     }
+                    save_compact_position(app, *position);
                 }
             }
             WindowEvent::CloseRequested { api, .. } => {
