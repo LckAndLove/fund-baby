@@ -5,7 +5,7 @@ use tauri::{
     menu::MenuBuilder,
     PhysicalPosition,
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
-    Manager, WindowEvent,
+    Emitter, Manager, WindowEvent,
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 
@@ -20,6 +20,7 @@ fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();
+        let _ = window.emit("desktop-widget-refresh", ());
     }
 }
 
@@ -35,6 +36,7 @@ fn show_main_window_instant(app: &tauri::AppHandle) {
         let _ = window.show();
         let _ = window.set_position(position);
         let _ = window.set_focus();
+        let _ = window.emit("desktop-widget-refresh", ());
     }
 }
 
@@ -57,6 +59,26 @@ fn hide_main_window_instant(app: &tauri::AppHandle) {
     }
 }
 
+fn toggle_main_window_instant(app: &tauri::AppHandle) {
+    let is_hidden = app
+        .state::<BossKeyState>()
+        .last_position
+        .lock()
+        .map(|position| position.is_some())
+        .unwrap_or(false);
+
+    let is_visible = app
+        .get_webview_window("main")
+        .and_then(|window| window.is_visible().ok())
+        .unwrap_or(false);
+
+    if is_hidden || !is_visible {
+        show_main_window_instant(app);
+    } else {
+        hide_main_window_instant(app);
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(BossKeyState::default())
@@ -67,10 +89,7 @@ fn main() {
                         return;
                     }
                     if shortcut == &Shortcut::new(None, Code::F2) {
-                        show_main_window_instant(app);
-                    }
-                    if shortcut == &Shortcut::new(None, Code::F4) {
-                        hide_main_window_instant(app);
+                        toggle_main_window_instant(app);
                     }
                 })
                 .build(),
@@ -83,9 +102,6 @@ fn main() {
 
             if let Err(error) = app.global_shortcut().register(Shortcut::new(None, Code::F2)) {
                 eprintln!("failed to register F2 global shortcut: {error}");
-            }
-            if let Err(error) = app.global_shortcut().register(Shortcut::new(None, Code::F4)) {
-                eprintln!("failed to register F4 global shortcut: {error}");
             }
 
             let menu = MenuBuilder::new(app)

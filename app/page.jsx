@@ -1968,7 +1968,7 @@ function DesktopWidget({
   const [opacity, setOpacity] = useState(() => {
     if (typeof window === 'undefined') return 0.92;
     const saved = Number(window.localStorage.getItem('widgetOpacity') || '0.92');
-    return Number.isFinite(saved) ? saved : 0.92;
+    return Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : 0.92;
   });
   const [showTools, setShowTools] = useState(false);
   const [isPinned, setIsPinned] = useState(true);
@@ -1990,7 +1990,7 @@ function DesktopWidget({
   useEffect(() => {
     if (!isDesktopRuntime()) return;
     if (!isEditing) {
-      resizeDesktopWindow(720, 300).catch(() => {});
+      resizeDesktopWindow(720, 360).catch(() => {});
       return;
     }
     const rowCount = Math.max(displayFunds.length, 1);
@@ -2004,9 +2004,14 @@ function DesktopWidget({
     if (typeof next === 'boolean') setIsPinned(next);
   };
 
+  const currentDate = formatDate();
   const rows = displayFunds.slice(0, 8).map((fund) => {
     const holding = holdings[fund.code];
     const profit = getHoldingProfit(fund, holding);
+    const hasIntradayTime = typeof fund.gztime === 'string' && /\d{2}:\d{2}/.test(fund.gztime);
+    const hasTodayIntradayTime = hasIntradayTime && fund.gztime.startsWith(currentDate);
+    const dateText = (fund.jzrq || fund.gztime || fund.time || '').replace(/^\d{4}-/, '').slice(0, 5);
+    const isClosed = !hasTodayIntradayTime;
     const nav = fund.estPricedCoverage > 0.05
       ? fund.estGsz
       : (typeof fund.gsz === 'number' ? fund.gsz : Number(fund.dwjz));
@@ -2017,12 +2022,13 @@ function DesktopWidget({
     const holdingRate = principal > 0 && typeof profit?.profitTotal === 'number'
       ? (profit.profitTotal / principal) * 100
       : null;
-    const updateTime = typeof fund.gztime === 'string' && fund.gztime.length >= 16
+    const updateTime = !isClosed && typeof fund.gztime === 'string' && fund.gztime.length >= 16
       ? fund.gztime.slice(11, 16)
-      : (fund.jzrq || '--');
+      : (dateText || '--');
 
     return {
       fund,
+      isClosed,
       nav: Number.isFinite(nav) ? nav : null,
       rate: Number.isFinite(rate) ? rate : null,
       profitToday: typeof profit?.profitToday === 'number' ? profit.profitToday : null,
@@ -2041,6 +2047,7 @@ function DesktopWidget({
   }, { amount: 0, today: 0, total: 0 });
 
   const colorClass = (value) => value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
+  const marketStatus = rows.length > 0 && rows.every((row) => row.isClosed) ? '休市中' : '盘中';
   const indexes = marketIndexes.length ? marketIndexes : [
     { code: 'sh000001', label: '上证指数', value: null, change: null, percent: null, time: '' },
     { code: 'sh000300', label: '沪深300', value: null, change: null, percent: null, time: '' },
@@ -2202,14 +2209,13 @@ function DesktopWidget({
             </table>
           </div>
 
-          <div className="editor-note">特别关注功能介绍：指定一个基金，在程序图标中以角标的形式实时更新，请在设置中选择角标类型与内容。</div>
 
           <div className="editor-settings-row">
             <button type="button" className="mode-link active">标准模式</button>
             <button type="button" className="mode-toggle" aria-label="标准模式开关" />
             <button type="button" className="mode-link">暗色模式</button>
             <label>界面灰度:<input type="range" min="0" max="100" defaultValue="0" /></label>
-            <label>透明度:<input type="range" min="0.45" max="1" step="0.01" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} /></label>
+            <label>透明度:<input type="range" min="0" max="1" step="0.01" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} /></label>
           </div>
 
           <div className="editor-toolbar">
@@ -2298,11 +2304,8 @@ function DesktopWidget({
 
         <div className="widget-toolbar">
           <button type="button" onClick={() => setShowTools((value) => !value)}>行情中心</button>
+          <span className="widget-market-status">{marketStatus}</span>
           <button type="button" onClick={() => setIsEditing(true)}>编辑</button>
-          <button type="button" className={isPinned ? 'active' : ''} onClick={handleTogglePinned}>
-            {isPinned ? '已置顶' : '未置顶'}
-          </button>
-          <button type="button" onClick={hideDesktopWindowToTray}>托盘</button>
           <button type="button" onClick={manualRefresh} disabled={refreshing || funds.length === 0}>
             <RefreshIcon width="14" height="14" className={refreshing ? 'spin' : ''} />
           </button>
@@ -2312,18 +2315,6 @@ function DesktopWidget({
           <span className="flat">总金额:{summary.amount.toFixed(2)}</span>
           <span className={colorClass(summary.today)}>日收益:{summary.today.toFixed(2)}</span>
           <span className={colorClass(summary.total)}>持有收益:{summary.total.toFixed(2)}</span>
-          <label>
-            透明度
-            <input
-              type="range"
-              min="0.45"
-              max="1"
-              step="0.01"
-              value={opacity}
-              onChange={(event) => setOpacity(Number(event.target.value))}
-            />
-            <strong>{Math.round(opacity * 100)}%</strong>
-          </label>
         </div>
 
         {showTools && (
@@ -2389,9 +2380,9 @@ export default function HomePage() {
   const refreshingRef = useRef(false);
 
   // 刷新频率状态
-  const [refreshMs, setRefreshMs] = useState(30000);
+  const [refreshMs, setRefreshMs] = useState(10000);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [tempSeconds, setTempSeconds] = useState(30);
+  const [tempSeconds, setTempSeconds] = useState(10);
 
   // 全局刷新状态
   const [refreshing, setRefreshing] = useState(false);
@@ -2463,7 +2454,7 @@ export default function HomePage() {
       setMarketIndexes(data);
     };
     loadIndexes();
-    const timer = setInterval(loadIndexes, 30000);
+    const timer = setInterval(loadIndexes, 10000);
     return () => clearInterval(timer);
   }, []);
 
@@ -3057,7 +3048,7 @@ export default function HomePage() {
         }
       }
 
-      const savedMs = parseInt(localStorage.getItem('refreshMs') || '30000', 10);
+      const savedMs = parseInt(localStorage.getItem('refreshMs') || '10000', 10);
       if (Number.isFinite(savedMs) && savedMs >= 5000) {
         setRefreshMs(savedMs);
         setTempSeconds(Math.round(savedMs / 1000));
@@ -3356,6 +3347,21 @@ export default function HomePage() {
     await refreshAll(codes);
   };
 
+  useEffect(() => {
+    if (!isDesktopApp) return;
+    let unlisten;
+    import('@tauri-apps/api/event')
+      .then(({ listen }) => listen('desktop-widget-refresh', () => manualRefresh()))
+      .then((cleanup) => {
+        unlisten = cleanup;
+      })
+      .catch(() => {});
+
+    return () => {
+      if (typeof unlisten === 'function') unlisten();
+    };
+  }, [isDesktopApp, funds]);
+
   const saveSettings = (e) => {
     e?.preventDefault?.();
     const ms = Math.max(10, Number(tempSeconds)) * 1000;
@@ -3374,7 +3380,7 @@ export default function HomePage() {
         favorites: JSON.parse(localStorage.getItem('favorites') || '[]'),
         groups: JSON.parse(localStorage.getItem('groups') || '[]'),
         collapsedCodes: JSON.parse(localStorage.getItem('collapsedCodes') || '[]'),
-        refreshMs: parseInt(localStorage.getItem('refreshMs') || '30000', 10),
+        refreshMs: parseInt(localStorage.getItem('refreshMs') || '10000', 10),
         viewMode: localStorage.getItem('viewMode') === 'list' ? 'list' : 'card',
         holdings: JSON.parse(localStorage.getItem('holdings') || '{}'),
         pendingTrades: JSON.parse(localStorage.getItem('pendingTrades') || '[]'),
