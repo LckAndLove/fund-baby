@@ -3,22 +3,34 @@
 use std::sync::Mutex;
 use tauri::{
     menu::{CheckMenuItem, MenuBuilder, MenuItem, Submenu},
-    PhysicalPosition, PhysicalSize,
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, WindowEvent,
+    Emitter, Manager, PhysicalPosition, PhysicalSize, WindowEvent,
 };
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 
-const FULL_WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize { width: 720, height: 360 };
-const FULL_WINDOW_MIN_SIZE: PhysicalSize<u32> = PhysicalSize { width: 620, height: 220 };
-const FULL_WINDOW_MAX_SIZE: PhysicalSize<u32> = PhysicalSize { width: 900, height: 700 };
-const COMPACT_WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize { width: 225, height: 38 };
+const FULL_WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize {
+    width: 720,
+    height: 360,
+};
+const FULL_WINDOW_MIN_SIZE: PhysicalSize<u32> = PhysicalSize {
+    width: 620,
+    height: 220,
+};
+const FULL_WINDOW_MAX_SIZE: PhysicalSize<u32> = PhysicalSize {
+    width: 900,
+    height: 700,
+};
+const COMPACT_WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize {
+    width: 225,
+    height: 38,
+};
 const COMPACT_WINDOW_MARGIN: i32 = 4;
 
 #[derive(Default)]
 struct BossKeyState {
-    last_position: Mutex<Option<PhysicalPosition<i32>>>,
+    last_full_position: Mutex<Option<PhysicalPosition<i32>>>,
+    last_compact_position: Mutex<Option<PhysicalPosition<i32>>>,
     is_compact: Mutex<bool>,
 }
 
@@ -29,7 +41,7 @@ fn show_main_window(app: &tauri::AppHandle) {
         }
         let position = app
             .state::<BossKeyState>()
-            .last_position
+            .last_full_position
             .lock()
             .ok()
             .and_then(|mut position| position.take())
@@ -50,7 +62,7 @@ fn show_main_window_instant(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let position = app
             .state::<BossKeyState>()
-            .last_position
+            .last_full_position
             .lock()
             .ok()
             .and_then(|mut position| position.take())
@@ -92,26 +104,39 @@ fn show_compact_profit_window(app: &tauri::AppHandle) {
         if !was_compact {
             if let Ok(position) = window.outer_position() {
                 if position.x > -30000 && position.y > -30000 {
-                    if let Ok(mut last_position) = app.state::<BossKeyState>().last_position.lock() {
+                    if let Ok(mut last_position) =
+                        app.state::<BossKeyState>().last_full_position.lock()
+                    {
                         *last_position = Some(position);
                     }
                 }
             }
         }
 
-        let position = window
-            .current_monitor()
+        let position = app
+            .state::<BossKeyState>()
+            .last_compact_position
+            .lock()
             .ok()
-            .flatten()
-            .map(|monitor| {
-                let monitor_position = monitor.position();
-                let monitor_size = monitor.size();
-                PhysicalPosition::new(
-                    monitor_position.x + COMPACT_WINDOW_MARGIN,
-                    monitor_position.y + monitor_size.height as i32 - COMPACT_WINDOW_SIZE.height as i32 - COMPACT_WINDOW_MARGIN,
-                )
-            })
-            .unwrap_or_else(|| PhysicalPosition::new(COMPACT_WINDOW_MARGIN, 720));
+            .and_then(|position| *position)
+            .unwrap_or_else(|| {
+                window
+                    .current_monitor()
+                    .ok()
+                    .flatten()
+                    .map(|monitor| {
+                        let work_area = monitor.work_area();
+                        let monitor_position = work_area.position;
+                        let monitor_size = work_area.size;
+                        PhysicalPosition::new(
+                            monitor_position.x + COMPACT_WINDOW_MARGIN,
+                            monitor_position.y + monitor_size.height as i32
+                                - COMPACT_WINDOW_SIZE.height as i32
+                                - COMPACT_WINDOW_MARGIN,
+                        )
+                    })
+                    .unwrap_or_else(|| PhysicalPosition::new(COMPACT_WINDOW_MARGIN, 720))
+            });
 
         let _ = window.show();
         let _ = window.set_resizable(false);
@@ -129,7 +154,7 @@ fn show_compact_profit_window(app: &tauri::AppHandle) {
 fn toggle_main_window_instant(app: &tauri::AppHandle) {
     let is_hidden = app
         .state::<BossKeyState>()
-        .last_position
+        .last_full_position
         .lock()
         .map(|position| position.is_some())
         .unwrap_or(false);
@@ -177,13 +202,22 @@ fn main() {
                 let _ = window.set_skip_taskbar(true);
             }
 
-            if let Err(error) = app.global_shortcut().register(Shortcut::new(None, Code::F2)) {
+            if let Err(error) = app
+                .global_shortcut()
+                .register(Shortcut::new(None, Code::F2))
+            {
                 eprintln!("failed to register F2 global shortcut: {error}");
             }
 
             let autostart_enabled = app.autolaunch().is_enabled().unwrap_or(false);
-            let autostart_item =
-                CheckMenuItem::with_id(app, "autostart", "开机自启动", true, autostart_enabled, None::<&str>)?;
+            let autostart_item = CheckMenuItem::with_id(
+                app,
+                "autostart",
+                "开机自启动",
+                true,
+                autostart_enabled,
+                None::<&str>,
+            )?;
             let opacity_menu = Submenu::with_id_and_items(
                 app,
                 "opacity",
@@ -261,11 +295,28 @@ fn main() {
             tray.build(app)?;
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|window, event| match event {
+            WindowEvent::Moved(position) => {
+                let app = window.app_handle();
+                let is_compact = app
+                    .state::<BossKeyState>()
+                    .is_compact
+                    .lock()
+                    .map(|is_compact| *is_compact)
+                    .unwrap_or(false);
+                if is_compact {
+                    if let Ok(mut last_compact_position) =
+                        app.state::<BossKeyState>().last_compact_position.lock()
+                    {
+                        *last_compact_position = Some(*position);
+                    }
+                }
+            }
+            WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 let _ = window.hide();
             }
+            _ => {}
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

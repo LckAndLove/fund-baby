@@ -1459,9 +1459,15 @@ input[type="number"] {
   line-height: 1;
   overflow: hidden;
   white-space: nowrap;
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
+  cursor: grab;
+  user-select: none;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+}
+
+.desktop-profit-strip:active {
+  cursor: grabbing;
 }
 
 .desktop-profit-strip .up {

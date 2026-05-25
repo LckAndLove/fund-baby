@@ -47,20 +47,18 @@ const hideDesktopWindowToTray = async () => {
   }
 };
 
+const startDesktopWindowDrag = async () => {
+  if (window.__TAURI_INTERNALS__) {
+    return (await getTauriWindow()).startDragging();
+  }
+};
+
 const toggleDesktopAlwaysOnTop = async () => {
   if (window.__TAURI_INTERNALS__) {
     const win = await getTauriWindow();
     const next = !(await win.isAlwaysOnTop());
     await win.setAlwaysOnTop(next);
     return next;
-  }
-};
-
-const keepDesktopAlwaysOnTop = async () => {
-  if (window.__TAURI_INTERNALS__) {
-    const win = await getTauriWindow();
-    await win.setAlwaysOnTop(true);
-    return true;
   }
 };
 
@@ -2013,8 +2011,9 @@ function DesktopWidget({
     let unlisten;
     import('@tauri-apps/api/event')
       .then(({ listen }) => listen('desktop-widget-compact', (event) => {
-        setIsCompact(Boolean(event.payload));
-        if (event.payload) setIsEditing(false);
+        const compact = Boolean(event.payload);
+        setIsCompact(compact);
+        if (compact) setIsEditing(false);
       }))
       .then((cleanup) => {
         unlisten = cleanup;
@@ -2032,24 +2031,6 @@ function DesktopWidget({
       .then((win) => win.isAlwaysOnTop())
       .then(setIsPinned)
       .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (!isDesktopRuntime()) return;
-    let disposed = false;
-    const pinWindow = () => {
-      keepDesktopAlwaysOnTop()
-        .then((pinned) => {
-          if (!disposed && typeof pinned === 'boolean') setIsPinned(pinned);
-        })
-        .catch(() => {});
-    };
-    pinWindow();
-    const timer = window.setInterval(pinWindow, 3000);
-    return () => {
-      disposed = true;
-      window.clearInterval(timer);
-    };
   }, []);
 
   useEffect(() => {
@@ -2149,13 +2130,27 @@ function DesktopWidget({
     }
     saveHolding(fund.code, next);
   };
+  const handleCompactMouseDown = (event) => {
+    if (event.button !== 0) return;
+    if (event.detail > 1) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    startDesktopWindowDrag().catch(() => {});
+  };
 
   if (isCompact) {
     return (
       <div className="desktop-widget-shell compact-mode" style={{ '--widget-opacity': opacity }}>
-        <div className="desktop-widget-drag" data-tauri-drag-region />
-        <div className="desktop-profit-strip" data-tauri-drag-region>
-          <span>日收益</span>
+        <div
+          className="desktop-profit-strip"
+          onMouseDown={handleCompactMouseDown}
+          onDoubleClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        >
           <span className={colorClass(summary.today)}>
             {summary.today > 0 ? '+' : ''}{summary.today.toFixed(2)}
           </span>
