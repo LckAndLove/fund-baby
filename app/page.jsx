@@ -2001,6 +2001,9 @@ function DesktopWidget({
   saveHolding,
   requestRemoveFund
 }) {
+  const maxVisibleRows = 10;
+  const tableHeaderHeight = 28;
+  const tableRowHeight = 28;
   const [opacity, setOpacity] = useState(() => {
     if (typeof window === 'undefined') return 0.92;
     const saved = Number(window.localStorage.getItem('widgetOpacity') || '0.92');
@@ -2066,11 +2069,13 @@ function DesktopWidget({
   useEffect(() => {
     if (!isDesktopRuntime()) return;
     if (!isEditing) {
-      resizeDesktopWindow(720, 360).catch(() => {});
+      const rowCount = Math.max(Math.min(displayFunds.length, maxVisibleRows), 1);
+      const height = Math.min(620, Math.max(270, 166 + rowCount * tableRowHeight));
+      resizeDesktopWindow(720, height).catch(() => {});
       return;
     }
     const rowCount = Math.max(displayFunds.length, 1);
-    const visibleRowCount = Math.min(rowCount, 10);
+    const visibleRowCount = Math.min(rowCount, maxVisibleRows);
     const width = Math.min(900, Math.max(700, 680 + Math.min(visibleRowCount, 6) * 18));
     const height = Math.min(700, Math.max(420, 320 + visibleRowCount * 34 + (showDropdown ? 72 : 0)));
     resizeDesktopWindow(width, height).catch(() => {});
@@ -2116,7 +2121,9 @@ function DesktopWidget({
       updateTime
     };
   });
-  const rows = allRows.slice(0, 10);
+  const rows = allRows.slice(0, maxVisibleRows);
+  const visibleTableRows = Math.max(rows.length, 1);
+  const widgetTableHeight = tableHeaderHeight + visibleTableRows * tableRowHeight;
 
   const summary = allRows.reduce((acc, row) => {
     const amount = row.isHoldingActive ? getHoldingProfit(row.fund, holdings[row.fund.code])?.amount || 0 : 0;
@@ -2393,7 +2400,7 @@ function DesktopWidget({
           ))}
         </div>
 
-        <div className="widget-table-wrap">
+        <div className="widget-table-wrap" style={{ height: widgetTableHeight, maxHeight: tableHeaderHeight + maxVisibleRows * tableRowHeight }}>
           <table className="widget-table">
             <thead>
               <tr>
