@@ -3,24 +3,45 @@
 use std::sync::Mutex;
 use tauri::{
     menu::{CheckMenuItem, MenuBuilder, MenuItem, Submenu},
-    PhysicalPosition,
+    PhysicalPosition, PhysicalSize,
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager, WindowEvent,
 };
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 
-const BOSS_KEY_HIDE_POSITION: PhysicalPosition<i32> = PhysicalPosition { x: -32000, y: -32000 };
+const FULL_WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize { width: 720, height: 360 };
+const FULL_WINDOW_MIN_SIZE: PhysicalSize<u32> = PhysicalSize { width: 620, height: 220 };
+const FULL_WINDOW_MAX_SIZE: PhysicalSize<u32> = PhysicalSize { width: 900, height: 700 };
+const COMPACT_WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize { width: 225, height: 38 };
+const COMPACT_WINDOW_MARGIN: i32 = 4;
 
 #[derive(Default)]
 struct BossKeyState {
     last_position: Mutex<Option<PhysicalPosition<i32>>>,
+    is_compact: Mutex<bool>,
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
+        if let Ok(mut is_compact) = app.state::<BossKeyState>().is_compact.lock() {
+            *is_compact = false;
+        }
+        let position = app
+            .state::<BossKeyState>()
+            .last_position
+            .lock()
+            .ok()
+            .and_then(|mut position| position.take())
+            .unwrap_or_else(|| PhysicalPosition::new(120, 120));
         let _ = window.show();
+        let _ = window.set_resizable(true);
+        let _ = window.set_min_size(Some(FULL_WINDOW_MIN_SIZE));
+        let _ = window.set_max_size(Some(FULL_WINDOW_MAX_SIZE));
+        let _ = window.set_size(FULL_WINDOW_SIZE);
+        let _ = window.set_position(position);
         let _ = window.set_focus();
+        let _ = window.emit("desktop-widget-compact", false);
         let _ = window.emit("desktop-widget-refresh", ());
     }
 }
@@ -35,28 +56,73 @@ fn show_main_window_instant(app: &tauri::AppHandle) {
             .and_then(|mut position| position.take())
             .unwrap_or_else(|| PhysicalPosition::new(120, 120));
         let _ = window.show();
+        let _ = window.set_resizable(true);
+        let _ = window.set_min_size(Some(FULL_WINDOW_MIN_SIZE));
+        let _ = window.set_max_size(Some(FULL_WINDOW_MAX_SIZE));
+        let _ = window.set_size(FULL_WINDOW_SIZE);
         let _ = window.set_position(position);
         let _ = window.set_focus();
+        if let Ok(mut is_compact) = app.state::<BossKeyState>().is_compact.lock() {
+            *is_compact = false;
+        }
+        let _ = window.emit("desktop-widget-compact", false);
         let _ = window.emit("desktop-widget-refresh", ());
     }
 }
 
 fn hide_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
+        if let Ok(mut is_compact) = app.state::<BossKeyState>().is_compact.lock() {
+            *is_compact = false;
+        }
+        let _ = window.emit("desktop-widget-compact", false);
         let _ = window.hide();
     }
 }
 
-fn hide_main_window_instant(app: &tauri::AppHandle) {
+fn show_compact_profit_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        if let Ok(position) = window.outer_position() {
-            if position.x > -30000 && position.y > -30000 {
-                if let Ok(mut last_position) = app.state::<BossKeyState>().last_position.lock() {
-                    *last_position = Some(position);
+        let was_compact = app
+            .state::<BossKeyState>()
+            .is_compact
+            .lock()
+            .map(|is_compact| *is_compact)
+            .unwrap_or(false);
+
+        if !was_compact {
+            if let Ok(position) = window.outer_position() {
+                if position.x > -30000 && position.y > -30000 {
+                    if let Ok(mut last_position) = app.state::<BossKeyState>().last_position.lock() {
+                        *last_position = Some(position);
+                    }
                 }
             }
         }
-        let _ = window.set_position(BOSS_KEY_HIDE_POSITION);
+
+        let position = window
+            .current_monitor()
+            .ok()
+            .flatten()
+            .map(|monitor| {
+                let monitor_position = monitor.position();
+                let monitor_size = monitor.size();
+                PhysicalPosition::new(
+                    monitor_position.x + COMPACT_WINDOW_MARGIN,
+                    monitor_position.y + monitor_size.height as i32 - COMPACT_WINDOW_SIZE.height as i32 - COMPACT_WINDOW_MARGIN,
+                )
+            })
+            .unwrap_or_else(|| PhysicalPosition::new(COMPACT_WINDOW_MARGIN, 720));
+
+        let _ = window.show();
+        let _ = window.set_resizable(false);
+        let _ = window.set_min_size(Some(COMPACT_WINDOW_SIZE));
+        let _ = window.set_max_size(Some(COMPACT_WINDOW_SIZE));
+        let _ = window.set_size(COMPACT_WINDOW_SIZE);
+        let _ = window.set_position(position);
+        if let Ok(mut is_compact) = app.state::<BossKeyState>().is_compact.lock() {
+            *is_compact = true;
+        }
+        let _ = window.emit("desktop-widget-compact", true);
     }
 }
 
@@ -72,11 +138,17 @@ fn toggle_main_window_instant(app: &tauri::AppHandle) {
         .get_webview_window("main")
         .and_then(|window| window.is_visible().ok())
         .unwrap_or(false);
+    let is_compact = app
+        .state::<BossKeyState>()
+        .is_compact
+        .lock()
+        .map(|is_compact| *is_compact)
+        .unwrap_or(false);
 
-    if is_hidden || !is_visible {
+    if is_hidden || !is_visible || is_compact {
         show_main_window_instant(app);
     } else {
-        hide_main_window_instant(app);
+        show_compact_profit_window(app);
     }
 }
 

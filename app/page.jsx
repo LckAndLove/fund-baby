@@ -1973,6 +1973,7 @@ function DesktopWidget({
   const [showTools, setShowTools] = useState(false);
   const [isPinned, setIsPinned] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [isCompact, setIsCompact] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1988,6 +1989,24 @@ function DesktopWidget({
         if (Number.isFinite(next)) {
           setOpacity(Math.min(1, Math.max(0, next)));
         }
+      }))
+      .then((cleanup) => {
+        unlisten = cleanup;
+      })
+      .catch(() => {});
+
+    return () => {
+      if (typeof unlisten === 'function') unlisten();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktopRuntime()) return;
+    let unlisten;
+    import('@tauri-apps/api/event')
+      .then(({ listen }) => listen('desktop-widget-compact', (event) => {
+        setIsCompact(Boolean(event.payload));
+        if (event.payload) setIsEditing(false);
       }))
       .then((cleanup) => {
         unlisten = cleanup;
@@ -2086,6 +2105,10 @@ function DesktopWidget({
     if (value === null || value === undefined || !Number.isFinite(value)) return '--';
     return `${value > 0 ? '' : ''}${value.toFixed(2)}%`;
   };
+  const compactTime = (() => {
+    const times = rows.map((row) => row.updateTime).filter((value) => value && value !== '--');
+    return times[0] || nowInTz().format('HH:mm');
+  })();
   const updateHoldingField = (fund, field, value) => {
     const current = holdings[fund.code] || {};
     const numericValue = Number(value);
@@ -2100,6 +2123,21 @@ function DesktopWidget({
     }
     saveHolding(fund.code, next);
   };
+
+  if (isCompact) {
+    return (
+      <div className="desktop-widget-shell compact-mode" style={{ '--widget-opacity': opacity }}>
+        <div className="desktop-widget-drag" data-tauri-drag-region />
+        <div className="desktop-profit-strip" data-tauri-drag-region>
+          <span>日收益</span>
+          <span className={colorClass(summary.today)}>
+            {summary.today > 0 ? '+' : ''}{summary.today.toFixed(2)}
+          </span>
+          <span>{compactTime}</span>
+        </div>
+      </div>
+    );
+  }
 
   if (isEditing) {
     return (
