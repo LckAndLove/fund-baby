@@ -2682,7 +2682,7 @@ export default function HomePage() {
         const amount = holding.share * currentNav;
         // 优先用 zzl (真实涨跌幅), 降级用 gszzl
         const rate = fund.zzl !== undefined ? Number(fund.zzl) : (Number(fund.gszzl) || 0);
-        profitToday = amount - (amount / (1 + rate / 100));
+        profitToday = amount * (rate / 100);
       } else {
         profitToday = null;
       }
@@ -2698,7 +2698,7 @@ export default function HomePage() {
         const amount = holding.share * currentNav;
         // 估值涨跌幅
         const gzChange = fund.estPricedCoverage > 0.05 ? fund.estGszzl : (Number(fund.gszzl) || 0);
-        profitToday = amount - (amount / (1 + gzChange / 100));
+        profitToday = amount * (gzChange / 100);
       } else {
         profitToday = null;
       }
