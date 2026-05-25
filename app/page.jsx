@@ -1981,6 +1981,26 @@ function DesktopWidget({
 
   useEffect(() => {
     if (!isDesktopRuntime()) return;
+    let unlisten;
+    import('@tauri-apps/api/event')
+      .then(({ listen }) => listen('desktop-widget-opacity', (event) => {
+        const next = Number(event.payload);
+        if (Number.isFinite(next)) {
+          setOpacity(Math.min(1, Math.max(0, next)));
+        }
+      }))
+      .then((cleanup) => {
+        unlisten = cleanup;
+      })
+      .catch(() => {});
+
+    return () => {
+      if (typeof unlisten === 'function') unlisten();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktopRuntime()) return;
     getTauriWindow()
       .then((win) => win.isAlwaysOnTop())
       .then(setIsPinned)

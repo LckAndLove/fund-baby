@@ -2,11 +2,12 @@
 
 use std::sync::Mutex;
 use tauri::{
-    menu::MenuBuilder,
+    menu::{CheckMenuItem, MenuBuilder, MenuItem, Submenu},
     PhysicalPosition,
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager, WindowEvent,
 };
+use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 
 const BOSS_KEY_HIDE_POSITION: PhysicalPosition<i32> = PhysicalPosition { x: -32000, y: -32000 };
@@ -82,6 +83,10 @@ fn toggle_main_window_instant(app: &tauri::AppHandle) {
 fn main() {
     tauri::Builder::default()
         .manage(BossKeyState::default())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--hidden"]),
+        ))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -104,9 +109,30 @@ fn main() {
                 eprintln!("failed to register F2 global shortcut: {error}");
             }
 
+            let autostart_enabled = app.autolaunch().is_enabled().unwrap_or(false);
+            let autostart_item =
+                CheckMenuItem::with_id(app, "autostart", "开机自启动", true, autostart_enabled, None::<&str>)?;
+            let opacity_menu = Submenu::with_id_and_items(
+                app,
+                "opacity",
+                "透明度",
+                true,
+                &[
+                    &MenuItem::with_id(app, "opacity:0", "0%", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "opacity:20", "20%", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "opacity:40", "40%", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "opacity:60", "60%", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "opacity:80", "80%", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "opacity:100", "100%", true, None::<&str>)?,
+                ],
+            )?;
+
             let menu = MenuBuilder::new(app)
                 .text("show", "显示窗口")
                 .text("hide", "隐藏到托盘")
+                .separator()
+                .item(&autostart_item)
+                .item(&opacity_menu)
                 .separator()
                 .text("quit", "退出")
                 .build()?;
@@ -115,10 +141,29 @@ fn main() {
                 .tooltip("养基小宝")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| match event.id().as_ref() {
+                .on_menu_event(move |app, event| match event.id().as_ref() {
                     "show" => show_main_window(app),
                     "hide" => hide_main_window(app),
+                    "autostart" => {
+                        let enabled = !app.autolaunch().is_enabled().unwrap_or(false);
+                        let result = if enabled {
+                            app.autolaunch().enable()
+                        } else {
+                            app.autolaunch().disable()
+                        };
+                        if result.is_ok() {
+                            let _ = autostart_item.set_checked(enabled);
+                        }
+                    }
                     "quit" => app.exit(0),
+                    id if id.starts_with("opacity:") => {
+                        if let Ok(percent) = id.trim_start_matches("opacity:").parse::<u8>() {
+                            let opacity = f64::from(percent) / 100.0;
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.emit("desktop-widget-opacity", opacity);
+                            }
+                        }
+                    }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
