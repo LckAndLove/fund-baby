@@ -1708,10 +1708,10 @@ input[type="number"] {
 }
 
 .widget-summary > span {
-  padding: 3px 5px;
-  border: 1px solid currentColor;
-  border-radius: 4px;
-  background: var(--widget-control-bg-soft);
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .widget-summary label {
