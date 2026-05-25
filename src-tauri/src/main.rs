@@ -329,7 +329,7 @@ fn main() {
                 .build()?;
             let icon = app.default_window_icon().cloned();
             let mut tray = TrayIconBuilder::with_id("main")
-                .tooltip("养基小宝")
+                .tooltip("养基场")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(move |app, event| match event.id().as_ref() {

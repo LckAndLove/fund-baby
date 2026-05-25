@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "养基小宝",
+  "productName": "养基场",
   "version": "1.0.0",
   "identifier": "cn.ningzhengsheng.fundbaby",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "养基小宝",
+        "title": "养基场",
         "width": 720,
         "height": 360,
         "minWidth": 620,
