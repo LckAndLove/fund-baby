@@ -2004,6 +2004,11 @@ function DesktopWidget({
   const maxVisibleRows = 10;
   const tableHeaderHeight = 28;
   const tableRowHeight = 28;
+  const widgetIndexRef = useRef(null);
+  const widgetTableRef = useRef(null);
+  const widgetToolbarRef = useRef(null);
+  const widgetSummaryRef = useRef(null);
+  const widgetSearchRef = useRef(null);
   const [opacity, setOpacity] = useState(() => {
     if (typeof window === 'undefined') return 0.92;
     const saved = Number(window.localStorage.getItem('widgetOpacity') || '0.92');
@@ -2066,28 +2071,8 @@ function DesktopWidget({
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (!isDesktopRuntime()) return;
-    if (!isEditing) {
-      const rowCount = Math.max(Math.min(displayFunds.length, maxVisibleRows), 1);
-      const height = Math.min(620, Math.max(270, 166 + rowCount * tableRowHeight));
-      resizeDesktopWindow(720, height).catch(() => {});
-      return;
-    }
-    const rowCount = Math.max(displayFunds.length, 1);
-    const visibleRowCount = Math.min(rowCount, maxVisibleRows);
-    const width = Math.min(900, Math.max(700, 680 + Math.min(visibleRowCount, 6) * 18));
-    const height = Math.min(700, Math.max(420, 320 + visibleRowCount * 34 + (showDropdown ? 72 : 0)));
-    resizeDesktopWindow(width, height).catch(() => {});
-  }, [isEditing, displayFunds.length, showDropdown]);
-
-  const handleTogglePinned = async () => {
-    const next = await toggleDesktopAlwaysOnTop();
-    if (typeof next === 'boolean') setIsPinned(next);
-  };
-
   const currentDate = formatDate();
-  const allRows = displayFunds.map((fund) => {
+  const buildRow = (fund) => {
     const holding = holdings[fund.code];
     const profit = getHoldingProfit(fund, holding);
     const isHoldingActive = Boolean(profit);
@@ -2115,23 +2100,58 @@ function DesktopWidget({
       isHoldingActive,
       nav: Number.isFinite(nav) ? nav : null,
       rate: Number.isFinite(rate) ? rate : null,
+      amount: typeof profit?.amount === 'number' ? profit.amount : null,
       profitToday: typeof profit?.profitToday === 'number' ? profit.profitToday : null,
       profitTotal: typeof profit?.profitTotal === 'number' ? profit.profitTotal : null,
       holdingRate,
       updateTime
     };
-  });
-  const rows = allRows.slice(0, maxVisibleRows);
-  const visibleTableRows = Math.max(rows.length, 1);
+  };
+  const rows = displayFunds.map(buildRow);
+  const summaryRows = funds.map(buildRow);
+  const visibleTableRows = Math.max(Math.min(rows.length, maxVisibleRows), 1);
   const widgetTableHeight = tableHeaderHeight + visibleTableRows * tableRowHeight;
 
-  const summary = allRows.reduce((acc, row) => {
-    const amount = row.isHoldingActive ? getHoldingProfit(row.fund, holdings[row.fund.code])?.amount || 0 : 0;
+  const summary = summaryRows.reduce((acc, row) => {
+    const amount = row.isHoldingActive ? row.amount || 0 : 0;
     if (amount > 0) acc.amount += amount;
     if (typeof row.profitToday === 'number') acc.today += row.profitToday;
     if (typeof row.profitTotal === 'number') acc.total += row.profitTotal;
     return acc;
   }, { amount: 0, today: 0, total: 0 });
+
+  useLayoutEffect(() => {
+    if (!isDesktopRuntime()) return;
+    if (!isEditing) {
+      const blockHeight = [
+        widgetIndexRef.current,
+        widgetTableRef.current,
+        widgetToolbarRef.current,
+        widgetSummaryRef.current,
+        widgetSearchRef.current
+      ].reduce((total, element) => {
+        if (!element) return total;
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return total + rect.height + parseFloat(style.marginTop || '0') + parseFloat(style.marginBottom || '0');
+      }, 0);
+      const shellPadding = 20;
+      const widgetPaddingAndBorder = 24;
+      const height = Math.min(620, Math.max(280, Math.ceil(blockHeight + shellPadding + widgetPaddingAndBorder)));
+      resizeDesktopWindow(720, height).catch(() => {});
+      return;
+    }
+    const rowCount = Math.max(displayFunds.length, 1);
+    const visibleRowCount = Math.min(rowCount, maxVisibleRows);
+    const width = Math.min(900, Math.max(700, 680 + Math.min(visibleRowCount, 6) * 18));
+    const height = Math.min(700, Math.max(420, 320 + visibleRowCount * 34 + (showDropdown ? 72 : 0)));
+    resizeDesktopWindow(width, height).catch(() => {});
+  }, [isEditing, rows.length, showTools, showDropdown, widgetTableHeight, summary.amount, summary.today, summary.total]);
+
+  const handleTogglePinned = async () => {
+    const next = await toggleDesktopAlwaysOnTop();
+    if (typeof next === 'boolean') setIsPinned(next);
+  };
 
   const colorClass = (value) => value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
   const marketStatus = rows.length > 0 && rows.every((row) => row.isClosed) ? '休市中' : '盘中';
@@ -2385,7 +2405,7 @@ function DesktopWidget({
     <div className="desktop-widget-shell" style={{ '--widget-opacity': opacity }}>
       <div className="desktop-widget-drag" data-tauri-drag-region />
       <div className="desktop-widget" data-tauri-drag-region>
-        <div className="widget-index-row">
+        <div className="widget-index-row" ref={widgetIndexRef}>
           {indexes.map((item) => (
             <div className="widget-index" key={item.code}>
               <div className="index-name">{item.label}</div>
@@ -2400,7 +2420,7 @@ function DesktopWidget({
           ))}
         </div>
 
-        <div className="widget-table-wrap" style={{ height: widgetTableHeight, maxHeight: tableHeaderHeight + maxVisibleRows * tableRowHeight }}>
+        <div ref={widgetTableRef} className="widget-table-wrap" style={{ height: widgetTableHeight, maxHeight: tableHeaderHeight + maxVisibleRows * tableRowHeight }}>
           <table className="widget-table">
             <thead>
               <tr>
@@ -2442,7 +2462,7 @@ function DesktopWidget({
           </table>
         </div>
 
-        <div className="widget-toolbar">
+        <div className="widget-toolbar" ref={widgetToolbarRef}>
           <span className="widget-market-status">{marketStatus}</span>
           <button type="button" onClick={() => setIsEditing(true)}>编辑</button>
           <button type="button" onClick={manualRefresh} disabled={refreshing || funds.length === 0}>
@@ -2450,14 +2470,17 @@ function DesktopWidget({
           </button>
         </div>
 
-        <div className="widget-summary">
+        <div className="widget-summary" ref={widgetSummaryRef}>
           <span className="flat">总金额:{summary.amount.toFixed(2)}</span>
           <span className={colorClass(summary.today)}>日收益:{summary.today.toFixed(2)}</span>
           <span className={colorClass(summary.total)}>持有收益:{summary.total.toFixed(2)}</span>
         </div>
 
         {showTools && (
-          <div className="widget-search" ref={dropdownRef}>
+          <div className="widget-search" ref={(node) => {
+            dropdownRef.current = node;
+            widgetSearchRef.current = node;
+          }}>
             <form onSubmit={addFund}>
               <input
                 placeholder="搜索基金名称或代码"
