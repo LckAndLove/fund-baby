@@ -8,6 +8,7 @@ use tauri::{
     Emitter, Manager, PhysicalPosition, PhysicalSize, WindowEvent,
 };
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 
 const FULL_WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize {
@@ -253,6 +254,48 @@ fn toggle_main_window_instant(app: &tauri::AppHandle) {
     }
 }
 
+#[tauri::command]
+fn save_export_config_file(app: tauri::AppHandle, content: String) -> Result<bool, String> {
+    let file_path = app
+        .dialog()
+        .file()
+        .add_filter("JSON", &["json"])
+        .set_file_name(format!(
+            "realtime-fund-config-{}.json",
+            timestamp_millis()
+        ))
+        .blocking_save_file()
+        .ok_or_else(|| "cancelled".to_string())?
+        .into_path()
+        .map_err(|error| error.to_string())?;
+
+    fs::write(file_path, content).map_err(|error| error.to_string())?;
+    Ok(true)
+}
+
+#[tauri::command]
+fn open_import_config_file(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let file_path = app
+        .dialog()
+        .file()
+        .add_filter("JSON", &["json"])
+        .blocking_pick_file()
+        .ok_or_else(|| "cancelled".to_string())?
+        .into_path()
+        .map_err(|error| error.to_string())?;
+
+    fs::read_to_string(file_path)
+        .map(Some)
+        .map_err(|error| error.to_string())
+}
+
+fn timestamp_millis() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default()
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(BossKeyState::default())
@@ -272,7 +315,12 @@ fn main() {
                 })
                 .build(),
         )
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![
+            save_export_config_file,
+            open_import_config_file
+        ])
         .setup(|app| {
             let saved_state = read_desktop_state(app.handle());
             if let Some(position) = saved_state.compact_position {
@@ -325,6 +373,9 @@ fn main() {
                 .item(&autostart_item)
                 .item(&opacity_menu)
                 .separator()
+                .text("import-data", "导入配置")
+                .text("export-data", "导出配置")
+                .separator()
                 .text("quit", "退出")
                 .build()?;
             let icon = app.default_window_icon().cloned();
@@ -335,6 +386,20 @@ fn main() {
                 .on_menu_event(move |app, event| match event.id().as_ref() {
                     "show" => show_main_window(app),
                     "hide" => hide_main_window(app),
+                    "import-data" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                            let _ = window.emit("desktop-data-import", ());
+                        }
+                    }
+                    "export-data" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                            let _ = window.emit("desktop-data-export", ());
+                        }
+                    }
                     "autostart" => {
                         let enabled = !app.autolaunch().is_enabled().unwrap_or(false);
                         let result = if enabled {

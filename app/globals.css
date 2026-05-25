@@ -1892,6 +1892,7 @@ input[type="number"] {
 .editor-table-wrap {
   overflow: auto;
   min-height: 0;
+  max-height: 294px;
   -webkit-app-region: no-drag;
 }
 

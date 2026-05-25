@@ -34,6 +34,11 @@ const getTauriWindow = async () => {
   return getCurrentWindow();
 };
 
+const invokeTauri = async (command, args) => {
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke(command, args);
+};
+
 const resizeDesktopWindow = async (width, height) => {
   if (window.__TAURI_INTERNALS__) {
     const { LogicalSize } = await import('@tauri-apps/api/dpi');
@@ -1063,9 +1068,11 @@ function HoldingEditModal({ fund, holding, onClose, onSave }) {
   const [cost, setCost] = useState('');
   const [amount, setAmount] = useState('');
   const [profit, setProfit] = useState('');
+  const [isHolding, setIsHolding] = useState(holding?.active !== false);
 
   // 初始化数据
   useEffect(() => {
+    setIsHolding(holding?.active !== false);
     if (holding) {
       const s = holding.share || 0;
       const c = holding.cost || 0;
@@ -1134,7 +1141,8 @@ function HoldingEditModal({ fund, holding, onClose, onSave }) {
 
     onSave({
       share: finalShare,
-      cost: finalCost
+      cost: finalCost,
+      active: isHolding
     });
     onClose();
   };
@@ -1181,6 +1189,28 @@ function HoldingEditModal({ fund, holding, onClose, onSave }) {
             </div>
           </div>
         </div>
+
+        <label
+          className="row"
+          style={{
+            justifyContent: 'space-between',
+            marginBottom: 16,
+            padding: '10px 12px',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            cursor: 'pointer'
+          }}
+        >
+          <span>
+            <span style={{ display: 'block', fontWeight: 600, fontSize: '14px' }}>计入持仓收益</span>
+            <span className="muted" style={{ fontSize: '12px' }}>关闭后仍显示行情，但不参与收益统计</span>
+          </span>
+          <input
+            type="checkbox"
+            checked={isHolding}
+            onChange={(event) => setIsHolding(event.target.checked)}
+          />
+        </label>
 
         <div className="tabs-container" style={{ marginBottom: 20, background: 'rgba(255,255,255,0.05)', padding: 4, borderRadius: 12 }}>
           <div className="row" style={{ gap: 0 }}>
@@ -2040,8 +2070,9 @@ function DesktopWidget({
       return;
     }
     const rowCount = Math.max(displayFunds.length, 1);
-    const width = Math.min(900, Math.max(700, 680 + Math.min(rowCount, 6) * 18));
-    const height = Math.min(700, Math.max(420, 320 + rowCount * 34 + (showDropdown ? 72 : 0)));
+    const visibleRowCount = Math.min(rowCount, 10);
+    const width = Math.min(900, Math.max(700, 680 + Math.min(visibleRowCount, 6) * 18));
+    const height = Math.min(700, Math.max(420, 320 + visibleRowCount * 34 + (showDropdown ? 72 : 0)));
     resizeDesktopWindow(width, height).catch(() => {});
   }, [isEditing, displayFunds.length, showDropdown]);
 
@@ -2121,7 +2152,8 @@ function DesktopWidget({
     const numericValue = Number(value);
     const next = {
       share: field === 'share' ? numericValue : Number(current.share || 0),
-      cost: field === 'cost' ? numericValue : Number(current.cost || 0)
+      cost: field === 'cost' ? numericValue : Number(current.cost || 0),
+      active: current.active !== false
     };
     if (!Number.isFinite(numericValue) || numericValue < 0) return;
     if (next.share === 0 && next.cost === 0) {
@@ -2238,6 +2270,7 @@ function DesktopWidget({
                 <tr>
                   <th>基金名称 ({funds.length})</th>
                   <th>基金代码</th>
+                  <th>持仓</th>
                   <th>成本价</th>
                   <th>持有份额</th>
                   <th>持有额</th>
@@ -2251,13 +2284,27 @@ function DesktopWidget({
                 {displayFunds.map((fund) => {
                   const holding = holdings[fund.code] || {};
                   const profit = getHoldingProfit(fund, holding);
+                  const isHoldingActive = holding.active !== false;
                   const share = Number(holding.share || 0);
                   const cost = Number(holding.cost || 0);
-                  const amount = share > 0 && cost > 0 ? share * cost : 0;
+                  const amount = isHoldingActive && share > 0 && cost > 0 ? share * cost : 0;
                   return (
                     <tr key={fund.code}>
                       <td title={fund.name}>{fund.name}</td>
                       <td>{fund.code}</td>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={isHoldingActive}
+                          onChange={(event) => saveHolding(fund.code, {
+                            ...holding,
+                            share,
+                            cost,
+                            active: event.target.checked
+                          })}
+                          title="是否计入收益统计"
+                        />
+                      </td>
                       <td>
                         <input
                           type="number"
@@ -2378,7 +2425,7 @@ function DesktopWidget({
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan="7" className="widget-empty">暂无基金，点击“行情中心”搜索添加，添加后显示实时估值</td>
+                  <td colSpan="7" className="widget-empty">暂无基金，点击“编辑”添加基金，添加后显示实时估值</td>
                 </tr>
               )}
             </tbody>
@@ -2386,7 +2433,6 @@ function DesktopWidget({
         </div>
 
         <div className="widget-toolbar">
-          <button type="button" onClick={() => setShowTools((value) => !value)}>行情中心</button>
           <span className="widget-market-status">{marketStatus}</span>
           <button type="button" onClick={() => setIsEditing(true)}>编辑</button>
           <button type="button" onClick={manualRefresh} disabled={refreshing || funds.length === 0}>
@@ -2664,6 +2710,7 @@ export default function HomePage() {
   // 计算持仓收益
   const getHoldingProfit = (fund, holding) => {
     if (!holding || typeof holding.share !== 'number') return null;
+    if (holding.active === false) return null;
 
     const now = nowInTz();
     const isAfter9 = now.hour() >= 9;
@@ -2777,7 +2824,11 @@ export default function HomePage() {
       if (data.share === null && data.cost === null) {
         delete next[code];
       } else {
-        next[code] = data;
+        next[code] = {
+          ...prev[code],
+          ...data,
+          active: data.active !== false
+        };
       }
       storageHelper.setItem('holdings', JSON.stringify(next));
       return next;
@@ -2837,7 +2888,12 @@ export default function HomePage() {
              if (newShare === 0) newCost = 0;
         }
 
-        tempHoldings[trade.fundCode] = { share: newShare, cost: newCost };
+        tempHoldings[trade.fundCode] = {
+          ...current,
+          share: newShare,
+          cost: newCost,
+          active: current.active !== false
+        };
         stateChanged = true;
         processedIds.add(trade.id);
       }
@@ -2906,7 +2962,7 @@ export default function HomePage() {
       if (newShare === 0) newCost = 0;
     }
 
-    handleSaveHolding(fund.code, { share: newShare, cost: newCost });
+    handleSaveHolding(fund.code, { share: newShare, cost: newCost, active: current.active !== false });
     setTradeModal({ open: false, fund: null, type: 'buy' });
   };
 
@@ -3456,19 +3512,21 @@ export default function HomePage() {
   const importFileRef = useRef(null);
   const [importMsg, setImportMsg] = useState('');
 
+  const createExportPayload = () => ({
+    funds: JSON.parse(localStorage.getItem('funds') || '[]'),
+    favorites: JSON.parse(localStorage.getItem('favorites') || '[]'),
+    groups: JSON.parse(localStorage.getItem('groups') || '[]'),
+    collapsedCodes: JSON.parse(localStorage.getItem('collapsedCodes') || '[]'),
+    refreshMs: parseInt(localStorage.getItem('refreshMs') || '10000', 10),
+    viewMode: localStorage.getItem('viewMode') === 'list' ? 'list' : 'card',
+    holdings: JSON.parse(localStorage.getItem('holdings') || '{}'),
+    pendingTrades: JSON.parse(localStorage.getItem('pendingTrades') || '[]'),
+    exportedAt: nowInTz().toISOString()
+  });
+
   const exportLocalData = async () => {
     try {
-      const payload = {
-        funds: JSON.parse(localStorage.getItem('funds') || '[]'),
-        favorites: JSON.parse(localStorage.getItem('favorites') || '[]'),
-        groups: JSON.parse(localStorage.getItem('groups') || '[]'),
-        collapsedCodes: JSON.parse(localStorage.getItem('collapsedCodes') || '[]'),
-        refreshMs: parseInt(localStorage.getItem('refreshMs') || '10000', 10),
-        viewMode: localStorage.getItem('viewMode') === 'list' ? 'list' : 'card',
-        holdings: JSON.parse(localStorage.getItem('holdings') || '{}'),
-        pendingTrades: JSON.parse(localStorage.getItem('pendingTrades') || '[]'),
-        exportedAt: nowInTz().toISOString()
-      };
+      const payload = createExportPayload();
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
       if (window.showSaveFilePicker) {
         const handle = await window.showSaveFilePicker({
@@ -3507,112 +3565,115 @@ export default function HomePage() {
     }
   };
 
+  const importLocalData = async (data) => {
+    if (!data || typeof data !== 'object') return;
+    // 从 localStorage 读取最新数据进行合并，防止状态滞后导致的数据丢失
+    const currentFunds = JSON.parse(localStorage.getItem('funds') || '[]');
+    const currentFavorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+    const currentGroups = JSON.parse(localStorage.getItem('groups') || '[]');
+    const currentCollapsed = JSON.parse(localStorage.getItem('collapsedCodes') || '[]');
+    const currentPendingTrades = JSON.parse(localStorage.getItem('pendingTrades') || '[]');
+
+    let mergedFunds = currentFunds;
+    let appendedCodes = [];
+
+    if (Array.isArray(data.funds)) {
+      const incomingFunds = dedupeByCode(data.funds);
+      const existingCodes = new Set(currentFunds.map(f => f.code));
+      const newItems = incomingFunds.filter(f => f && f.code && !existingCodes.has(f.code));
+      appendedCodes = newItems.map(f => f.code);
+      mergedFunds = [...currentFunds, ...newItems];
+      setFunds(mergedFunds);
+      storageHelper.setItem('funds', JSON.stringify(mergedFunds));
+    }
+
+    if (Array.isArray(data.favorites)) {
+      const mergedFav = Array.from(new Set([...currentFavorites, ...data.favorites]));
+      setFavorites(new Set(mergedFav));
+      storageHelper.setItem('favorites', JSON.stringify(mergedFav));
+    }
+
+    if (Array.isArray(data.groups)) {
+      // 合并分组：如果 ID 相同则合并 codes，否则添加新分组
+      const mergedGroups = [...currentGroups];
+      data.groups.forEach(incomingGroup => {
+        const existingIdx = mergedGroups.findIndex(g => g.id === incomingGroup.id);
+        if (existingIdx > -1) {
+          mergedGroups[existingIdx] = {
+            ...mergedGroups[existingIdx],
+            codes: Array.from(new Set([...mergedGroups[existingIdx].codes, ...(incomingGroup.codes || [])]))
+          };
+        } else {
+          mergedGroups.push(incomingGroup);
+        }
+      });
+      setGroups(mergedGroups);
+      storageHelper.setItem('groups', JSON.stringify(mergedGroups));
+    }
+
+    if (Array.isArray(data.collapsedCodes)) {
+      const mergedCollapsed = Array.from(new Set([...currentCollapsed, ...data.collapsedCodes]));
+      setCollapsedCodes(new Set(mergedCollapsed));
+      storageHelper.setItem('collapsedCodes', JSON.stringify(mergedCollapsed));
+    }
+
+    if (typeof data.refreshMs === 'number' && data.refreshMs >= 5000) {
+      setRefreshMs(data.refreshMs);
+      setTempSeconds(Math.round(data.refreshMs / 1000));
+      storageHelper.setItem('refreshMs', String(data.refreshMs));
+    }
+    if (data.viewMode === 'card' || data.viewMode === 'list') {
+      applyViewMode(data.viewMode);
+    }
+
+    if (data.holdings && typeof data.holdings === 'object') {
+      const mergedHoldings = { ...JSON.parse(localStorage.getItem('holdings') || '{}'), ...data.holdings };
+      setHoldings(mergedHoldings);
+      storageHelper.setItem('holdings', JSON.stringify(mergedHoldings));
+    }
+
+    if (Array.isArray(data.pendingTrades)) {
+      const existingPending = Array.isArray(currentPendingTrades) ? currentPendingTrades : [];
+      const incomingPending = data.pendingTrades.filter((trade) => trade && trade.fundCode);
+      const fundCodeSet = new Set(mergedFunds.map((f) => f.code));
+      const keyOf = (trade) => {
+        if (trade?.id) return `id:${trade.id}`;
+        return `k:${trade?.fundCode || ''}:${trade?.type || ''}:${trade?.date || ''}:${trade?.share || ''}:${trade?.amount || ''}:${trade?.isAfter3pm ? 1 : 0}`;
+      };
+      const mergedPendingMap = new Map();
+      existingPending.forEach((trade) => {
+        if (!trade || !fundCodeSet.has(trade.fundCode)) return;
+        mergedPendingMap.set(keyOf(trade), trade);
+      });
+      incomingPending.forEach((trade) => {
+        if (!fundCodeSet.has(trade.fundCode)) return;
+        mergedPendingMap.set(keyOf(trade), trade);
+      });
+      const mergedPending = Array.from(mergedPendingMap.values());
+      setPendingTrades(mergedPending);
+      storageHelper.setItem('pendingTrades', JSON.stringify(mergedPending));
+    }
+
+    // 导入成功后，仅刷新新追加的基金
+    if (appendedCodes.length) {
+      // 这里需要确保 refreshAll 不会因为闭包问题覆盖掉刚刚合并好的 mergedFunds
+      // 我们直接传入所有代码执行一次全量刷新是最稳妥的，或者修改 refreshAll 支持增量更新
+      const allCodes = mergedFunds.map(f => f.code);
+      await refreshAll(allCodes);
+    }
+
+    setSuccessModal({ open: true, message: '导入成功' });
+    setSettingsOpen(false); // 导入成功自动关闭设置弹框
+    if (importFileRef.current) importFileRef.current.value = '';
+  };
+
   const handleImportFileChange = async (e) => {
     try {
       const file = e.target.files?.[0];
       if (!file) return;
       const text = await file.text();
       const data = JSON.parse(text);
-      if (data && typeof data === 'object') {
-        // 从 localStorage 读取最新数据进行合并，防止状态滞后导致的数据丢失
-        const currentFunds = JSON.parse(localStorage.getItem('funds') || '[]');
-        const currentFavorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-        const currentGroups = JSON.parse(localStorage.getItem('groups') || '[]');
-        const currentCollapsed = JSON.parse(localStorage.getItem('collapsedCodes') || '[]');
-        const currentPendingTrades = JSON.parse(localStorage.getItem('pendingTrades') || '[]');
-
-        let mergedFunds = currentFunds;
-        let appendedCodes = [];
-
-        if (Array.isArray(data.funds)) {
-          const incomingFunds = dedupeByCode(data.funds);
-          const existingCodes = new Set(currentFunds.map(f => f.code));
-          const newItems = incomingFunds.filter(f => f && f.code && !existingCodes.has(f.code));
-          appendedCodes = newItems.map(f => f.code);
-          mergedFunds = [...currentFunds, ...newItems];
-          setFunds(mergedFunds);
-          storageHelper.setItem('funds', JSON.stringify(mergedFunds));
-        }
-
-        if (Array.isArray(data.favorites)) {
-          const mergedFav = Array.from(new Set([...currentFavorites, ...data.favorites]));
-          setFavorites(new Set(mergedFav));
-          storageHelper.setItem('favorites', JSON.stringify(mergedFav));
-        }
-
-        if (Array.isArray(data.groups)) {
-          // 合并分组：如果 ID 相同则合并 codes，否则添加新分组
-          const mergedGroups = [...currentGroups];
-          data.groups.forEach(incomingGroup => {
-            const existingIdx = mergedGroups.findIndex(g => g.id === incomingGroup.id);
-            if (existingIdx > -1) {
-              mergedGroups[existingIdx] = {
-                ...mergedGroups[existingIdx],
-                codes: Array.from(new Set([...mergedGroups[existingIdx].codes, ...(incomingGroup.codes || [])]))
-              };
-            } else {
-              mergedGroups.push(incomingGroup);
-            }
-          });
-          setGroups(mergedGroups);
-          storageHelper.setItem('groups', JSON.stringify(mergedGroups));
-        }
-
-        if (Array.isArray(data.collapsedCodes)) {
-          const mergedCollapsed = Array.from(new Set([...currentCollapsed, ...data.collapsedCodes]));
-          setCollapsedCodes(new Set(mergedCollapsed));
-          storageHelper.setItem('collapsedCodes', JSON.stringify(mergedCollapsed));
-        }
-
-        if (typeof data.refreshMs === 'number' && data.refreshMs >= 5000) {
-          setRefreshMs(data.refreshMs);
-          setTempSeconds(Math.round(data.refreshMs / 1000));
-          storageHelper.setItem('refreshMs', String(data.refreshMs));
-        }
-        if (data.viewMode === 'card' || data.viewMode === 'list') {
-          applyViewMode(data.viewMode);
-        }
-
-        if (data.holdings && typeof data.holdings === 'object') {
-          const mergedHoldings = { ...JSON.parse(localStorage.getItem('holdings') || '{}'), ...data.holdings };
-          setHoldings(mergedHoldings);
-          storageHelper.setItem('holdings', JSON.stringify(mergedHoldings));
-        }
-
-        if (Array.isArray(data.pendingTrades)) {
-          const existingPending = Array.isArray(currentPendingTrades) ? currentPendingTrades : [];
-          const incomingPending = data.pendingTrades.filter((trade) => trade && trade.fundCode);
-          const fundCodeSet = new Set(mergedFunds.map((f) => f.code));
-          const keyOf = (trade) => {
-            if (trade?.id) return `id:${trade.id}`;
-            return `k:${trade?.fundCode || ''}:${trade?.type || ''}:${trade?.date || ''}:${trade?.share || ''}:${trade?.amount || ''}:${trade?.isAfter3pm ? 1 : 0}`;
-          };
-          const mergedPendingMap = new Map();
-          existingPending.forEach((trade) => {
-            if (!trade || !fundCodeSet.has(trade.fundCode)) return;
-            mergedPendingMap.set(keyOf(trade), trade);
-          });
-          incomingPending.forEach((trade) => {
-            if (!fundCodeSet.has(trade.fundCode)) return;
-            mergedPendingMap.set(keyOf(trade), trade);
-          });
-          const mergedPending = Array.from(mergedPendingMap.values());
-          setPendingTrades(mergedPending);
-          storageHelper.setItem('pendingTrades', JSON.stringify(mergedPending));
-        }
-
-        // 导入成功后，仅刷新新追加的基金
-        if (appendedCodes.length) {
-          // 这里需要确保 refreshAll 不会因为闭包问题覆盖掉刚刚合并好的 mergedFunds
-          // 我们直接传入所有代码执行一次全量刷新是最稳妥的，或者修改 refreshAll 支持增量更新
-          const allCodes = mergedFunds.map(f => f.code);
-          await refreshAll(allCodes);
-        }
-
-        setSuccessModal({ open: true, message: '导入成功' });
-        setSettingsOpen(false); // 导入成功自动关闭设置弹框
-        if (importFileRef.current) importFileRef.current.value = '';
-      }
+      await importLocalData(data);
     } catch (err) {
       console.error('Import error:', err);
       setImportMsg('导入失败，请检查文件格式');
@@ -3620,6 +3681,50 @@ export default function HomePage() {
       if (importFileRef.current) importFileRef.current.value = '';
     }
   };
+
+  useEffect(() => {
+    if (!isDesktopApp) return;
+    let unlistenImport;
+    let unlistenExport;
+
+    import('@tauri-apps/api/event')
+      .then(async ({ listen }) => {
+        unlistenImport = await listen('desktop-data-import', () => {
+          invokeTauri('open_import_config_file')
+            .then(async (text) => {
+              if (!text) return;
+              await importLocalData(JSON.parse(text));
+            })
+            .catch((err) => {
+              if (err !== 'cancelled') {
+                console.error('Tray import error:', err);
+                setImportMsg('导入失败，请检查文件格式');
+                setTimeout(() => setImportMsg(''), 4000);
+              }
+            });
+        });
+        unlistenExport = await listen('desktop-data-export', () => {
+          invokeTauri('save_export_config_file', {
+            content: JSON.stringify(createExportPayload(), null, 2)
+          })
+            .then((saved) => {
+              if (saved) {
+                setSuccessModal({ open: true, message: '导出成功' });
+                setSettingsOpen(false);
+              }
+            })
+            .catch((err) => {
+              if (err !== 'cancelled') console.error('Tray export error:', err);
+            });
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      if (typeof unlistenImport === 'function') unlistenImport();
+      if (typeof unlistenExport === 'function') unlistenExport();
+    };
+  }, [isDesktopApp]);
 
   useEffect(() => {
     const isAnyModalOpen =
