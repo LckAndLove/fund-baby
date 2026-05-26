@@ -1165,154 +1165,125 @@ function HoldingEditModal({ fund, holding, onClose, onSave }) {
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="glass card modal"
+        className="holding-modal"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '400px' }}
       >
-        <div className="title" style={{ marginBottom: 20, justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="holding-modal-header">
+          <div className="holding-modal-title">
             <SettingsIcon width="20" height="20" />
             <span>设置持仓</span>
           </div>
-          <button className="icon-button" onClick={onClose} style={{ border: 'none', background: 'transparent' }}>
+          <button className="holding-modal-close" onClick={onClose} aria-label="关闭">
             <CloseIcon width="20" height="20" />
           </button>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <div className="fund-name" style={{ fontWeight: 600, fontSize: '16px', marginBottom: 4 }}>{fund?.name}</div>
-          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-            <div className="muted" style={{ fontSize: '12px' }}>#{fund?.code}</div>
-            <div className="badge" style={{ fontSize: '12px' }}>
-              最新净值：<span style={{ fontWeight: 600, color: 'var(--primary)' }}>{dwjz}</span>
-            </div>
+        <div className="holding-fund-card">
+          <div>
+            <div className="holding-fund-name">{fund?.name}</div>
+            <div className="holding-fund-code">#{fund?.code}</div>
+          </div>
+          <div className="holding-nav-pill">
+            最新净值 <span>{dwjz}</span>
           </div>
         </div>
 
-        <label
-          className="row"
-          style={{
-            justifyContent: 'space-between',
-            marginBottom: 16,
-            padding: '10px 12px',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-            cursor: 'pointer'
-          }}
-        >
+        <label className="holding-active-toggle">
           <span>
-            <span style={{ display: 'block', fontWeight: 600, fontSize: '14px' }}>计入持仓收益</span>
-            <span className="muted" style={{ fontSize: '12px' }}>关闭后仍显示行情，但不参与收益统计</span>
+            <span className="holding-active-title">计入持仓收益</span>
+            <span className="holding-active-desc">关闭后仍显示行情，但不参与收益统计</span>
           </span>
-          <input
-            type="checkbox"
-            checked={isHolding}
-            onChange={(event) => setIsHolding(event.target.checked)}
-          />
+          <span className="holding-switch">
+            <input
+              type="checkbox"
+              checked={isHolding}
+              onChange={(event) => setIsHolding(event.target.checked)}
+            />
+            <span />
+          </span>
         </label>
 
-        <div className="tabs-container" style={{ marginBottom: 20, background: 'rgba(255,255,255,0.05)', padding: 4, borderRadius: 12 }}>
-          <div className="row" style={{ gap: 0 }}>
-            <button
-              type="button"
-              className={`tab ${mode === 'amount' ? 'active' : ''}`}
-              onClick={() => handleModeChange('amount')}
-              style={{ flex: 1, justifyContent: 'center', height: 32, borderRadius: 8 }}
-            >
-              按金额
-            </button>
-            <button
-              type="button"
-              className={`tab ${mode === 'share' ? 'active' : ''}`}
-              onClick={() => handleModeChange('share')}
-              style={{ flex: 1, justifyContent: 'center', height: 32, borderRadius: 8 }}
-            >
-              按份额
-            </button>
-          </div>
+        <div className="holding-mode-switch">
+          <button
+            type="button"
+            className={mode === 'amount' ? 'active' : ''}
+            onClick={() => handleModeChange('amount')}
+          >
+            按金额
+          </button>
+          <button
+            type="button"
+            className={mode === 'share' ? 'active' : ''}
+            onClick={() => handleModeChange('share')}
+          >
+            按份额
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="holding-form">
           {mode === 'amount' ? (
             <>
-              <div className="form-group" style={{ marginBottom: 16 }}>
-                <label className="muted" style={{ display: 'block', marginBottom: 8, fontSize: '14px' }}>
-                  持有金额 <span style={{ color: 'var(--danger)' }}>*</span>
+              <div className="holding-field">
+                <label>
+                  持有金额 <span>*</span>
                 </label>
                 <input
                   type="number"
                   step="any"
-                  className={`input ${!amount ? 'error' : ''}`}
+                  className={!amount ? 'error' : ''}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="请输入持有总金额"
-                  style={{
-                    width: '100%',
-                    border: !amount ? '1px solid var(--danger)' : undefined
-                  }}
                 />
               </div>
-              <div className="form-group" style={{ marginBottom: 24 }}>
-                <label className="muted" style={{ display: 'block', marginBottom: 8, fontSize: '14px' }}>
-                  持有收益
-                </label>
+              <div className="holding-field">
+                <label>持有收益</label>
                 <input
                   type="number"
                   step="any"
-                  className="input"
                   value={profit}
                   onChange={(e) => setProfit(e.target.value)}
                   placeholder="请输入持有总收益 (可为负)"
-                  style={{ width: '100%' }}
                 />
               </div>
             </>
           ) : (
             <>
-              <div className="form-group" style={{ marginBottom: 16 }}>
-                <label className="muted" style={{ display: 'block', marginBottom: 8, fontSize: '14px' }}>
-                  持有份额 <span style={{ color: 'var(--danger)' }}>*</span>
+              <div className="holding-field">
+                <label>
+                  持有份额 <span>*</span>
                 </label>
                 <input
                   type="number"
                   step="any"
-                  className={`input ${!share ? 'error' : ''}`}
+                  className={!share ? 'error' : ''}
                   value={share}
                   onChange={(e) => setShare(e.target.value)}
                   placeholder="请输入持有份额"
-                  style={{
-                    width: '100%',
-                    border: !share ? '1px solid var(--danger)' : undefined
-                  }}
                 />
               </div>
-              <div className="form-group" style={{ marginBottom: 24 }}>
-                <label className="muted" style={{ display: 'block', marginBottom: 8, fontSize: '14px' }}>
-                  持仓成本价 <span style={{ color: 'var(--danger)' }}>*</span>
+              <div className="holding-field">
+                <label>
+                  持仓成本价 <span>*</span>
                 </label>
                 <input
                   type="number"
                   step="any"
-                  className={`input ${!cost ? 'error' : ''}`}
+                  className={!cost ? 'error' : ''}
                   value={cost}
                   onChange={(e) => setCost(e.target.value)}
                   placeholder="请输入持仓成本价"
-                  style={{
-                    width: '100%',
-                    border: !cost ? '1px solid var(--danger)' : undefined
-                  }}
                 />
               </div>
             </>
           )}
 
-          <div className="row" style={{ gap: 12 }}>
-            <button type="button" className="button secondary" onClick={onClose} style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'var(--text)' }}>取消</button>
+          <div className="holding-modal-actions">
+            <button type="button" className="holding-button secondary" onClick={onClose}>取消</button>
             <button
               type="submit"
-              className="button"
+              className="holding-button primary"
               disabled={!isValid}
-              style={{ flex: 1, opacity: isValid ? 1 : 0.6 }}
             >
               保存
             </button>
@@ -2128,6 +2099,7 @@ function DesktopWidget({
   }, { amount: 0, today: 0, total: 0 });
 
   useLayoutEffect(() => {
+    if (isCompact) return;
     if (!isDesktopRuntime()) return;
     if (!isEditing) {
       const blockHeight = [
@@ -2153,7 +2125,7 @@ function DesktopWidget({
     const width = Math.min(900, Math.max(700, 680 + Math.min(visibleRowCount, 6) * 18));
     const height = Math.min(700, Math.max(420, 320 + visibleRowCount * 34 + (showDropdown ? 72 : 0)));
     resizeDesktopWindow(width, height).catch(() => {});
-  }, [isEditing, rows.length, showTools, showDropdown, widgetTableHeight, summary.amount, summary.today, summary.total]);
+  }, [isCompact, isEditing, rows.length, showTools, showDropdown, widgetTableHeight, summary.amount, summary.today, summary.total]);
 
   const handleTogglePinned = async () => {
     const next = await toggleDesktopAlwaysOnTop();

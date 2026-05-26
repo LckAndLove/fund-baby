@@ -946,6 +946,258 @@ input[type="number"] {
   padding: 16px;
 }
 
+.holding-modal {
+  width: min(420px, calc(100vw - 28px));
+  padding: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  color: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.24);
+}
+
+.holding-modal-header,
+.holding-fund-card,
+.holding-active-toggle,
+.holding-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.holding-modal-header {
+  margin-bottom: 12px;
+}
+
+.holding-modal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.holding-modal-title svg {
+  color: #1677ff;
+}
+
+.holding-modal-close {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(15, 23, 42, 0.58);
+  cursor: pointer;
+}
+
+.holding-modal-close:hover {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: rgba(15, 23, 42, 0.04);
+  color: rgba(15, 23, 42, 0.86);
+}
+
+.holding-fund-card,
+.holding-active-toggle {
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.holding-fund-card {
+  align-items: flex-start;
+}
+
+.holding-fund-name {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.holding-fund-code,
+.holding-active-desc {
+  margin-top: 3px;
+  color: rgba(15, 23, 42, 0.52);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.holding-nav-pill {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(22, 119, 255, 0.08);
+  color: rgba(15, 23, 42, 0.64);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.holding-nav-pill span {
+  margin-left: 4px;
+  color: #1677ff;
+}
+
+.holding-active-toggle {
+  cursor: pointer;
+}
+
+.holding-active-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.holding-switch {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  flex: 0 0 auto;
+}
+
+.holding-switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.holding-switch > span {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.18);
+  transition: background 160ms ease;
+}
+
+.holding-switch > span::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.28);
+  transition: transform 160ms ease;
+}
+
+.holding-switch input:checked + span {
+  background: #1677ff;
+}
+
+.holding-switch input:checked + span::after {
+  transform: translateX(18px);
+}
+
+.holding-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.holding-mode-switch button {
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(15, 23, 42, 0.58);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.holding-mode-switch button.active {
+  background: #fff;
+  color: #1677ff;
+  box-shadow: 0 1px 5px rgba(15, 23, 42, 0.12);
+}
+
+.holding-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.holding-field label {
+  display: block;
+  margin-bottom: 6px;
+  color: rgba(15, 23, 42, 0.62);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.holding-field label span {
+  color: #ef4444;
+}
+
+.holding-field input {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 6px;
+  background: #fff;
+  color: rgba(15, 23, 42, 0.92);
+  font-size: 13px;
+  outline: none;
+}
+
+.holding-field input:focus {
+  border-color: #1677ff;
+  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
+}
+
+.holding-field input.error {
+  border-color: #ef4444;
+}
+
+.holding-modal-actions {
+  margin-top: 4px;
+}
+
+.holding-button {
+  flex: 1;
+  height: 36px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.holding-button.secondary {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  color: rgba(15, 23, 42, 0.72);
+}
+
+.holding-button.primary {
+  border: 1px solid #1677ff;
+  background: #1677ff;
+  color: #fff;
+}
+
+.holding-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .pending-list {
   scrollbar-width: none;
 }
