@@ -2206,13 +2206,6 @@ function DesktopWidget({
     return times[0] || nowInTz().format('HH:mm');
   })();
 
-  useLayoutEffect(() => {
-    if (!isCompact || !isDesktopRuntime() || !compactStripRef.current) return;
-    const width = Math.ceil(compactStripRef.current.scrollWidth);
-    const nextWidth = Math.min(220, Math.max(96, width));
-    resizeDesktopWindow(nextWidth, 38).catch(() => {});
-  }, [isCompact, summary.today, compactTime]);
-
   const updateHoldingField = (fund, field, value) => {
     const current = holdings[fund.code] || {};
     const numericValue = Number(value);

@@ -24,10 +24,10 @@ const FULL_WINDOW_MAX_SIZE: PhysicalSize<u32> = PhysicalSize {
     height: 700,
 };
 const COMPACT_WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize {
-    width: 132,
+    width: 160,
     height: 38,
 };
-const COMPACT_WINDOW_MAX_WIDTH: u32 = 220;
+const COMPACT_WINDOW_MAX_WIDTH: u32 = 160;
 const COMPACT_WINDOW_MARGIN: i32 = 4;
 const DESKTOP_STATE_FILE: &str = "desktop-state.json";
 const PROGRAMMATIC_MOVE_TOLERANCE: i32 = 4;
