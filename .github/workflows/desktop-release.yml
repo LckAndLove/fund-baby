@@ -23,12 +23,6 @@ jobs:
             artifact-name: fund-baby-windows
             artifact-path: |
               src-tauri/target/release/bundle/nsis/*.exe
-          - name: macOS
-            os: macos-latest
-            bundles: dmg
-            artifact-name: fund-baby-macos
-            artifact-path: |
-              src-tauri/target/release/bundle/dmg/*.dmg
           - name: Linux
             os: ubuntu-22.04
             bundles: deb
