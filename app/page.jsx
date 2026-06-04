@@ -3547,17 +3547,158 @@ export default function HomePage() {
   const importFileRef = useRef(null);
   const [importMsg, setImportMsg] = useState('');
 
-  const createExportPayload = () => ({
-    funds: JSON.parse(localStorage.getItem('funds') || '[]'),
-    favorites: JSON.parse(localStorage.getItem('favorites') || '[]'),
-    groups: JSON.parse(localStorage.getItem('groups') || '[]'),
-    collapsedCodes: JSON.parse(localStorage.getItem('collapsedCodes') || '[]'),
-    refreshMs: parseInt(localStorage.getItem('refreshMs') || '10000', 10),
-    viewMode: localStorage.getItem('viewMode') === 'list' ? 'list' : 'card',
-    holdings: JSON.parse(localStorage.getItem('holdings') || '{}'),
-    pendingTrades: JSON.parse(localStorage.getItem('pendingTrades') || '[]'),
-    exportedAt: nowInTz().toISOString()
-  });
+  const createExportPayload = () => {
+    // 获取当前的持仓、分组、自选和基金列表
+    const currentHoldings = JSON.parse(localStorage.getItem('holdings') || '{}');
+    const currentGroups = JSON.parse(localStorage.getItem('groups') || '[]');
+    const currentFavorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+    const currentFunds = JSON.parse(localStorage.getItem('funds') || '[]');
+
+    const fundListGroup = [];
+    const chooseListGroup = [];
+
+    // 将分组映射为新格式中的 fundListGroup 和 chooseListGroup
+    currentGroups.forEach(g => {
+      // 过滤出该分组下有持仓的基金
+      const holdingFunds = g.codes
+        .filter(code => currentHoldings[code] && parseFloat(currentHoldings[code].share) > 0)
+        .map(code => ({
+          code: code,
+          cost: String(currentHoldings[code].cost || 0),
+          num: String(currentHoldings[code].share || 0)
+        }));
+
+      if (holdingFunds.length > 0) {
+        fundListGroup.push({
+          name: g.name,
+          funds: holdingFunds
+        });
+      }
+
+      // 将该分组下的所有基金放入 chooseListGroup (自选分组)
+      const chooseFunds = g.codes.map(code => {
+        const item = { code: code };
+        if (currentHoldings[code] && currentHoldings[code].cost) {
+          item.cost = parseFloat(currentHoldings[code].cost);
+        }
+        item.date = new Date().toISOString().split('T')[0];
+        return item;
+      });
+
+      if (chooseFunds.length > 0) {
+        chooseListGroup.push({
+          name: g.name,
+          funds: chooseFunds
+        });
+      }
+    });
+
+    // 处理未分组的基金
+    const groupedCodes = new Set();
+    currentGroups.forEach(g => {
+      g.codes.forEach(c => groupedCodes.add(c));
+    });
+
+    const ungroupedHoldingFunds = [];
+    const ungroupedChooseFunds = [];
+
+    currentFunds.forEach(f => {
+      const code = f.code;
+      if (!groupedCodes.has(code)) {
+        const hasHolding = currentHoldings[code] && parseFloat(currentHoldings[code].share) > 0;
+        if (hasHolding) {
+          ungroupedHoldingFunds.push({
+            code: code,
+            cost: String(currentHoldings[code].cost || 0),
+            num: String(currentHoldings[code].share || 0)
+          });
+        }
+        const item = { code: code };
+        if (currentHoldings[code] && currentHoldings[code].cost) {
+          item.cost = parseFloat(currentHoldings[code].cost);
+        }
+        item.date = new Date().toISOString().split('T')[0];
+        ungroupedChooseFunds.push(item);
+      }
+    });
+
+    // 检查是否有持仓数据但不在基金列表中的代码
+    Object.keys(currentHoldings).forEach(code => {
+      if (!groupedCodes.has(code) && !currentFunds.some(f => f.code === code)) {
+        const hasHolding = parseFloat(currentHoldings[code].share) > 0;
+        if (hasHolding) {
+          ungroupedHoldingFunds.push({
+            code: code,
+            cost: String(currentHoldings[code].cost || 0),
+            num: String(currentHoldings[code].share || 0)
+          });
+        }
+        const item = { code: code };
+        if (currentHoldings[code] && currentHoldings[code].cost) {
+          item.cost = parseFloat(currentHoldings[code].cost);
+        }
+        item.date = new Date().toISOString().split('T')[0];
+        ungroupedChooseFunds.push(item);
+      }
+    });
+
+    if (ungroupedHoldingFunds.length > 0) {
+      const existingDefault = fundListGroup.find(g => g.name === '默认分组');
+      if (existingDefault) {
+        existingDefault.funds = [...existingDefault.funds, ...ungroupedHoldingFunds];
+      } else {
+        fundListGroup.push({
+          name: '默认分组',
+          funds: ungroupedHoldingFunds
+        });
+      }
+    }
+
+    if (ungroupedChooseFunds.length > 0) {
+      const existingDefault = chooseListGroup.find(g => g.name === '默认分组');
+      if (existingDefault) {
+        existingDefault.funds = [...existingDefault.funds, ...ungroupedChooseFunds];
+      } else {
+        chooseListGroup.push({
+          name: '默认分组',
+          funds: ungroupedChooseFunds
+        });
+      }
+    }
+
+    // 从 localStorage 读取存储的新格式特有参数（如果不存在则使用默认值）
+    const getExtSetting = (key, defaultVal) => {
+      const val = localStorage.getItem(`ext_${key}`);
+      if (val === null) return defaultVal;
+      try {
+        return JSON.parse(val);
+      } catch {
+        return val;
+      }
+    };
+
+    return {
+      BadgeContent: getExtSetting('BadgeContent', 2),
+      BadgeType: getExtSetting('BadgeType', 2),
+      RealtimeFundcode: getExtSetting('RealtimeFundcode', "024194"),
+      RealtimeFundcodeGroupIndex: getExtSetting('RealtimeFundcodeGroupIndex', 0),
+      chooseListGroup,
+      fundList: getExtSetting('fundList', []),
+      fundListGroup,
+      fundListM: getExtSetting('fundListM', []),
+      isLiveUpdate: getExtSetting('isLiveUpdate', true),
+      mpVersion: getExtSetting('mpVersion', "2.9.1"),
+      openGroup: getExtSetting('openGroup', true),
+      seciList: getExtSetting('seciList', ["1.000300","0.399006","1.000688","1.000001","0.399001"]),
+      showAmount: getExtSetting('showAmount', false),
+      showCost: getExtSetting('showCost', true),
+      showCostRate: getExtSetting('showCostRate', true),
+      showGSZ: getExtSetting('showGSZ', true),
+      showGains: getExtSetting('showGains', true),
+      userId: getExtSetting('userId', "460a0e56-d556-4d4f-897c-26a6ba3ff2d9"),
+      version: getExtSetting('version', "3.4.3")
+    };
+  };
 
   const exportLocalData = async () => {
     try {
@@ -3565,7 +3706,7 @@ export default function HomePage() {
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
       if (window.showSaveFilePicker) {
         const handle = await window.showSaveFilePicker({
-          suggestedName: `realtime-fund-config-${Date.now()}.json`,
+          suggestedName: `自选基金助手配置文件-${Date.now()}.json`,
           types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
         });
         const writable = await handle.createWritable();
@@ -3578,7 +3719,7 @@ export default function HomePage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `realtime-fund-config-${Date.now()}.json`;
+      a.download = `自选基金助手配置文件-${Date.now()}.json`;
       let done = false;
       const finish = () => {
         if (done) return;
@@ -3602,99 +3743,117 @@ export default function HomePage() {
 
   const importLocalData = async (data) => {
     if (!data || typeof data !== 'object') return;
-    // 从 localStorage 读取最新数据进行合并，防止状态滞后导致的数据丢失
-    const currentFunds = JSON.parse(localStorage.getItem('funds') || '[]');
-    const currentFavorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-    const currentGroups = JSON.parse(localStorage.getItem('groups') || '[]');
-    const currentCollapsed = JSON.parse(localStorage.getItem('collapsedCodes') || '[]');
-    const currentPendingTrades = JSON.parse(localStorage.getItem('pendingTrades') || '[]');
 
-    let mergedFunds = currentFunds;
-    let appendedCodes = [];
+    // 保存额外的配置项，以便后续导出时可以保持一致性
+    const extKeys = [
+      'BadgeContent', 'BadgeType', 'RealtimeFundcode', 'RealtimeFundcodeGroupIndex',
+      'fundList', 'fundListM', 'isLiveUpdate', 'mpVersion', 'openGroup', 'seciList',
+      'showAmount', 'showCost', 'showCostRate', 'showGSZ', 'showGains', 'userId', 'version'
+    ];
+    extKeys.forEach(key => {
+      if (data[key] !== undefined) {
+        storageHelper.setItem(`ext_${key}`, JSON.stringify(data[key]));
+      }
+    });
 
-    if (Array.isArray(data.funds)) {
-      const incomingFunds = dedupeByCode(data.funds);
-      const existingCodes = new Set(currentFunds.map(f => f.code));
-      const newItems = incomingFunds.filter(f => f && f.code && !existingCodes.has(f.code));
-      appendedCodes = newItems.map(f => f.code);
-      mergedFunds = [...currentFunds, ...newItems];
-      setFunds(mergedFunds);
-      storageHelper.setItem('funds', JSON.stringify(mergedFunds));
-    }
+    const allCodes = new Set();
+    const newHoldings = {};
 
-    if (Array.isArray(data.favorites)) {
-      const mergedFav = Array.from(new Set([...currentFavorites, ...data.favorites]));
-      setFavorites(new Set(mergedFav));
-      storageHelper.setItem('favorites', JSON.stringify(mergedFav));
-    }
-
-    if (Array.isArray(data.groups)) {
-      // 合并分组：如果 ID 相同则合并 codes，否则添加新分组
-      const mergedGroups = [...currentGroups];
-      data.groups.forEach(incomingGroup => {
-        const existingIdx = mergedGroups.findIndex(g => g.id === incomingGroup.id);
-        if (existingIdx > -1) {
-          mergedGroups[existingIdx] = {
-            ...mergedGroups[existingIdx],
-            codes: Array.from(new Set([...mergedGroups[existingIdx].codes, ...(incomingGroup.codes || [])]))
-          };
-        } else {
-          mergedGroups.push(incomingGroup);
+    // 1. 解析持仓和代码 (fundListGroup)
+    if (Array.isArray(data.fundListGroup)) {
+      data.fundListGroup.forEach(g => {
+        if (Array.isArray(g.funds)) {
+          g.funds.forEach(f => {
+            if (f && f.code) {
+              allCodes.add(f.code);
+              const cost = parseFloat(f.cost) || 0;
+              const share = parseFloat(f.num) || 0;
+              newHoldings[f.code] = { share, cost };
+            }
+          });
         }
       });
-      setGroups(mergedGroups);
-      storageHelper.setItem('groups', JSON.stringify(mergedGroups));
     }
 
-    if (Array.isArray(data.collapsedCodes)) {
-      const mergedCollapsed = Array.from(new Set([...currentCollapsed, ...data.collapsedCodes]));
-      setCollapsedCodes(new Set(mergedCollapsed));
-      storageHelper.setItem('collapsedCodes', JSON.stringify(mergedCollapsed));
-    }
-
-    if (typeof data.refreshMs === 'number' && data.refreshMs >= 5000) {
-      setRefreshMs(data.refreshMs);
-      setTempSeconds(Math.round(data.refreshMs / 1000));
-      storageHelper.setItem('refreshMs', String(data.refreshMs));
-    }
-    if (data.viewMode === 'card' || data.viewMode === 'list') {
-      applyViewMode(data.viewMode);
-    }
-
-    if (data.holdings && typeof data.holdings === 'object') {
-      const mergedHoldings = { ...JSON.parse(localStorage.getItem('holdings') || '{}'), ...data.holdings };
-      setHoldings(mergedHoldings);
-      storageHelper.setItem('holdings', JSON.stringify(mergedHoldings));
-    }
-
-    if (Array.isArray(data.pendingTrades)) {
-      const existingPending = Array.isArray(currentPendingTrades) ? currentPendingTrades : [];
-      const incomingPending = data.pendingTrades.filter((trade) => trade && trade.fundCode);
-      const fundCodeSet = new Set(mergedFunds.map((f) => f.code));
-      const keyOf = (trade) => {
-        if (trade?.id) return `id:${trade.id}`;
-        return `k:${trade?.fundCode || ''}:${trade?.type || ''}:${trade?.date || ''}:${trade?.share || ''}:${trade?.amount || ''}:${trade?.isAfter3pm ? 1 : 0}`;
-      };
-      const mergedPendingMap = new Map();
-      existingPending.forEach((trade) => {
-        if (!trade || !fundCodeSet.has(trade.fundCode)) return;
-        mergedPendingMap.set(keyOf(trade), trade);
+    // 2. 解析自选和代码 (chooseListGroup)
+    const favCodes = new Set();
+    if (Array.isArray(data.chooseListGroup)) {
+      data.chooseListGroup.forEach(g => {
+        if (Array.isArray(g.funds)) {
+          g.funds.forEach(f => {
+            if (f && f.code) {
+              allCodes.add(f.code);
+              favCodes.add(f.code);
+            }
+          });
+        }
       });
-      incomingPending.forEach((trade) => {
-        if (!fundCodeSet.has(trade.fundCode)) return;
-        mergedPendingMap.set(keyOf(trade), trade);
-      });
-      const mergedPending = Array.from(mergedPendingMap.values());
-      setPendingTrades(mergedPending);
-      storageHelper.setItem('pendingTrades', JSON.stringify(mergedPending));
     }
 
-    // 导入成功后，仅刷新新追加的基金
-    if (appendedCodes.length) {
-      // 这里需要确保 refreshAll 不会因为闭包问题覆盖掉刚刚合并好的 mergedFunds
-      // 我们直接传入所有代码执行一次全量刷新是最稳妥的，或者修改 refreshAll 支持增量更新
-      const allCodes = mergedFunds.map(f => f.code);
-      await refreshAll(allCodes);
+    // 3. 解析额外列表
+    if (Array.isArray(data.fundList)) {
+      data.fundList.forEach(f => {
+        if (f && f.code) allCodes.add(f.code);
+      });
+    }
+    if (Array.isArray(data.fundListM)) {
+      data.fundListM.forEach(f => {
+        if (f && f.code) allCodes.add(f.code);
+      });
+    }
+
+    // 4. 重构分组 (groups)
+    const groupMap = new Map(); // name -> Set of codes
+    const groupOrder = [];
+
+    const addGroupFunds = (groupList) => {
+      if (Array.isArray(groupList)) {
+        groupList.forEach(g => {
+          if (g && typeof g === 'object' && g.name) {
+            if (!groupMap.has(g.name)) {
+              groupMap.set(g.name, new Set());
+              groupOrder.push(g.name);
+            }
+            if (Array.isArray(g.funds)) {
+              g.funds.forEach(f => {
+                if (f && f.code) {
+                  groupMap.get(g.name).add(f.code);
+                }
+              });
+            }
+          }
+        });
+      }
+    };
+
+    addGroupFunds(data.chooseListGroup);
+    addGroupFunds(data.fundListGroup);
+
+    const importedGroups = groupOrder.map((name, idx) => ({
+      id: `group_${Date.now()}_${idx}`,
+      name: name,
+      codes: Array.from(groupMap.get(name))
+    }));
+
+    // 5. 更新状态与 LocalStorage
+    const nextFunds = Array.from(allCodes).map(code => ({ code }));
+    setFunds(nextFunds);
+    storageHelper.setItem('funds', JSON.stringify(nextFunds));
+
+    const importedFavs = Array.from(favCodes);
+    setFavorites(favCodes);
+    storageHelper.setItem('favorites', JSON.stringify(importedFavs));
+
+    setGroups(importedGroups);
+    storageHelper.setItem('groups', JSON.stringify(importedGroups));
+
+    setHoldings(newHoldings);
+    storageHelper.setItem('holdings', JSON.stringify(newHoldings));
+
+    // 6. 异步刷新获取最新的基金详细数据
+    if (nextFunds.length > 0) {
+      const allCodesList = nextFunds.map(f => f.code);
+      await refreshAll(allCodesList);
     }
 
     setSuccessModal({ open: true, message: '导入成功' });
