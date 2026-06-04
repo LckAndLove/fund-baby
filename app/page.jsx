@@ -2742,9 +2742,14 @@ export default function HomePage() {
     return () => clearInterval(timer);
   }, []);
 
-  // 计算持仓收益
+  // 计算持仓收益（优化版）
   const getHoldingProfit = (fund, holding) => {
-    if (!holding || typeof holding.share !== 'number') return null;
+    if (!holding) return null;
+    
+    // 安全强转并检查有效性，防止 string 类型导致收益被跳过
+    const share = Number(holding.share);
+    const cost = Number(holding.cost);
+    if (!Number.isFinite(share) || share <= 0) return null;
     if (holding.active === false) return null;
 
     const now = nowInTz();
@@ -2753,49 +2758,61 @@ export default function HomePage() {
     const hasTodayValuation = typeof fund.gztime === 'string' && fund.gztime.startsWith(todayStr);
     const canCalcTodayProfit = hasTodayData || hasTodayValuation;
 
-    // 如果是交易日且9点以后，且今日净值未出，则强制使用估值（隐藏涨跌幅列模式）
+    // 如果是交易日且9点以后，且今日净值未出，则强制使用估值
     const useValuation = isTradingDay && isAfter9 && !hasTodayData;
 
     let currentNav;
+    let yesterdayNav; // 引入昨日净值用来做今日收益的精确计算
     let profitToday;
 
+    // 获取安全的 zzl
+    const hasValidZzl = fund.zzl !== undefined && fund.zzl !== null && fund.zzl !== '';
+    const rate = hasValidZzl ? Number(fund.zzl) : (Number(fund.gszzl) || 0);
+
     if (!useValuation) {
-      // 使用确权净值 (dwjz)
+      // 1. 使用确权净值 (dwjz)
       currentNav = Number(fund.dwjz);
-      if (!currentNav) return null;
+      if (!currentNav || !Number.isFinite(currentNav)) return null;
 
       if (canCalcTodayProfit) {
-        const amount = holding.share * currentNav;
-        // 优先用 zzl (真实涨跌幅), 降级用 gszzl
-        const rate = fund.zzl !== undefined ? Number(fund.zzl) : (Number(fund.gszzl) || 0);
-        profitToday = amount * (rate / 100);
+        // 确权模式下，当前净值已经是今日净值，昨日净值 = 今日净值 / (1 + 今日涨跌幅 / 100)
+        yesterdayNav = currentNav / (1 + rate / 100);
+        const yesterdayAmount = share * yesterdayNav;
+        profitToday = yesterdayAmount * (rate / 100);
       } else {
         profitToday = null;
       }
     } else {
-      // 否则使用估值
-      currentNav = fund.estPricedCoverage > 0.05
-        ? fund.estGsz
+      // 2. 使用实时盘中估值
+      const hasEstGsz = fund.estGsz !== undefined && fund.estGsz !== null;
+      currentNav = (fund.estPricedCoverage > 0.05 && hasEstGsz)
+        ? Number(fund.estGsz)
         : (typeof fund.gsz === 'number' ? fund.gsz : Number(fund.dwjz));
 
-      if (!currentNav) return null;
+      if (!currentNav || !Number.isFinite(currentNav)) return null;
 
       if (canCalcTodayProfit) {
-        const amount = holding.share * currentNav;
-        // 估值涨跌幅
-        const gzChange = fund.estPricedCoverage > 0.05 ? fund.estGszzl : (Number(fund.gszzl) || 0);
-        profitToday = amount * (gzChange / 100);
+        // 估值模式下，dwjz 是前一交易日的收盘净值，可直接用作昨日净值
+        yesterdayNav = Number(fund.dwjz);
+        
+        const hasEstGszzl = fund.estGszzl !== undefined && fund.estGszzl !== null;
+        const gzChange = (fund.estPricedCoverage > 0.05 && hasEstGszzl) 
+          ? Number(fund.estGszzl) 
+          : (Number(fund.gszzl) || 0);
+          
+        const yesterdayAmount = share * yesterdayNav;
+        profitToday = yesterdayAmount * (gzChange / 100);
       } else {
         profitToday = null;
       }
     }
 
-    // 持仓金额
-    const amount = holding.share * currentNav;
+    // 当前持仓金额
+    const amount = share * currentNav;
 
     // 总收益 = (当前净值 - 成本价) * 份额
-    const profitTotal = typeof holding.cost === 'number'
-      ? (currentNav - holding.cost) * holding.share
+    const profitTotal = Number.isFinite(cost) && cost > 0
+      ? (currentNav - cost) * share
       : null;
 
     return {
